@@ -31,10 +31,10 @@ from osgeo import gdal
 #Input configuration
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('-pl','--patch_len', dest='patch_len', type=int, default=5, help='# timesteps used to train')
-parser.add_argument('-po','--patch_overlap', dest='patch_overlap', type=int, default=0, help='Debug')
-parser.add_argument('--band_n', dest='band_n', type=int, default=7, help='Debug')
+parser.add_argument('-ps','--patch_step', dest='patch_step', type=int, default=0, help='Debug')
+parser.add_argument('--band_n', dest='band_n', type=int, default=6, help='Debug')
 parser.add_argument('--path', dest='path', default="../../data/AP1_Para/", help='Data path')
-parser.add_argument('--class_n', dest='class_n', type=int, default=6, help='Class number')
+parser.add_argument('--class_n', dest='class_n', type=int, default=2, help='Class number')
 parser.add_argument('-bs','--balance_samples_per_class', dest='balance_samples_per_class',type=int,default=None, help="Class number. 'local' or 'remote'")
 parser.add_argument('-ttmn','--train_test_mask_name', dest='train_test_mask_name',default="TrainTestMask.tif", help="Class number. 'local' or 'remote'")
 parser.add_argument('-psv','--patches_save', dest='patches_save',default=True, help="Patches npy store")
@@ -82,6 +82,27 @@ def normalize(im, mask):
 	print("FINISHED NORMALIZING, RESULT:")
 	print_min_max_avg(im_norm)
 	return im_norm
+
+def patches_extract(im,patch_len,band_n,step,debug=1):
+	deb.prints(band_n)
+	if band_n != -1:
+		window_shape=(patch_len,patch_len,band_n)
+	else:
+		window_shape=(patch_len,patch_len)
+	if debug:
+		deb.prints(window_shape)
+		deb.prints(im.shape)
+	return np.squeeze(view_as_windows(im, window_shape, step=step))
+
+def im_reconstruct_from_patches(patches,a):
+	out=np.zeros(a.im_shape[:-1])
+	for row in range(a.patches_info['rows']):
+		for col in range(a.patches_info['cols']):
+			out[row*a.patch_step:(row+1)*a.patch_step, \
+				col*a.patch_step:(col+1)*a.patch_step]= \
+				patches[row,col]
+	return out
+
 if __name__ == '__main__':
 	path={}
 	path['raster']=a.path+'L8_224-66_ROI_clip.tif'
@@ -91,21 +112,44 @@ if __name__ == '__main__':
 	im = gdal.Open(path['raster'])
 	im = np.array(im.ReadAsArray())
 	im = np.transpose(im, (1, 2, 0))
-	im = im[0:-1,0:-1,:] # Eliminate non use pixels
+	im = im[0:-1,0:-1,:] # Eliminate non used pixels
 	im = im.astype(np.float32)
 	deb.prints(im.shape)
 	deb.prints(im.dtype)
 
+	a.band_n=im.shape[2]
+	deb.prints(a.band_n)
 	masks={}
-	masks['train_test']=cv2.imread(path['train_test_mask'],0)
-	masks['label']=cv2.imread(path['label'],-1)
-	
+	masks['train_test']=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
+	masks['label']=cv2.imread(path['label'],-1).astype(np.uint8)
+	masks['label'][masks['label']==2]=1 # Only use 2 classes
+	cv2.imwrite("label_original.png",masks['label']*255)
 	deb.prints(masks['train_test'].shape)
 	deb.prints(masks['label'].shape)
 	
-	# Normalize
+	# ============ Normalize ========================
 	im = normalize(im, masks['train_test'])
 	deb.prints(im.shape)
+
+	# =========== Extract patches  ===================
+	patches={}
+	patches['im'] = patches_extract(im,a.patch_len,a.band_n,a.patch_step)
+	patches['label'] = patches_extract(masks['label'],a.patch_len,-1,a.patch_step)
+	a.im_shape=im.shape
+	a.patches_info={}
+	a.patches_info['rows']=patches['label'].shape[0]
+	a.patches_info['cols']=patches['label'].shape[1]
+	
+	# ====== Reconstruct label. Just for assertion here. =====
+	label_reconstruct = im_reconstruct_from_patches(patches['label'],a)
+	deb.prints(patches['im'].shape)
+	deb.prints(label_reconstruct.shape)
+	deb.prints(np.unique(label_reconstruct))
+	cv2.imwrite("label_reconstruct.png",label_reconstruct*255)
+
+	# ============== Store patches into npy
+
+
 	# Extract
 	# Train test split
 	#patches=Patches(a)
