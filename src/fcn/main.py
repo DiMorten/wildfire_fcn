@@ -36,7 +36,7 @@ parser.add_argument('-tl', '--t_len', dest='t_len',
 parser.add_argument('-cn', '--class_n', dest='class_n',
 					type=int, default=11, help='class_n')
 parser.add_argument('-chn', '--channel_n', dest='channel_n',
-					type=int, default=2, help='channel number')
+					type=int, default=6, help='channel number')
 
 parser.add_argument('-pl', '--patch_len', dest='patch_len',
 					type=int, default=32, help='patch len')
@@ -77,7 +77,7 @@ deb.prints(args.patch_step_test)
 # ================= Generic class for init values =============================================== #
 class NetObject(object):
 
-	def __init__(self, patch_len=32, patch_step_train=32,patch_step_test=32, path="../data/", im_name_train="Image_Train.tif", im_name_test="Image_Test.tif", label_name_train="Reference_Train.tif", label_name_test="Reference_Test.tif", channel_n=2, debug=1,exp_id="skip_connections",
+	def __init__(self, patch_len=32, patch_step_train=32,patch_step_test=32, path="../data/", im_name_train="Image_Train.tif", im_name_test="Image_Test.tif", label_name_train="Reference_Train.tif", label_name_test="Reference_Test.tif", channel_n=6, debug=1,exp_id="skip_connections",
 		t_len=7,class_n=11):
 		self.patch_len = patch_len
 		self.path = {"v": path, 'train': {}, 'test': {}}
@@ -526,7 +526,7 @@ class Dataset(NetObject):
 		out=cv2.cvtColor(out.astype(np.uint8),cv2.COLOR_RGB2BGR)
 		return out
 	def val_set_get(self,mode='stratified',validation_split=0.2):
-		clss_train_unique,clss_train_count=np.unique(self.patches['train']['label'].argmax(axis=3),return_counts=True)
+		clss_train_unique,clss_train_count=np.unique(self.patches['train']['label'],return_counts=True)
 		deb.prints(clss_train_count)
 		self.patches['val']={'n':int(self.patches['train']['n']*validation_split)}
 		
@@ -545,7 +545,7 @@ class Dataset(NetObject):
 				self.patches['val']['in']=self.patches['train']['in'][self.patches['val']['idx']]
 				self.patches['val']['label']=self.patches['train']['label'][self.patches['val']['idx']]
 		
-				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'].argmax(axis=3),return_counts=True)
+				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'],return_counts=True)
 				
 				if not np.array_equal(clss_train_unique,clss_val_unique):
 					deb.prints(clss_train_unique)
@@ -569,7 +569,7 @@ class Dataset(NetObject):
 
 				self.patches['val']['in']=self.patches['train']['in'][self.patches['val']['idx']]
 				self.patches['val']['label']=self.patches['train']['label'][self.patches['val']['idx']]
-				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'].argmax(axis=3),return_counts=True)
+				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'],return_counts=True)
 						
 				deb.prints(clss_train_unique)
 				deb.prints(clss_val_unique)
@@ -603,7 +603,7 @@ class Dataset(NetObject):
 		patch_count=np.zeros(self.class_n)
 
 		for clss in range(self.class_n):
-			patch_count[clss]=np.count_nonzero(np.isin(self.patches['test']['label'].argmax(axis=3),clss).sum(axis=(1,2)))
+			patch_count[clss]=np.count_nonzero(np.isin(self.patches['test']['label'],clss).sum(axis=(1,2)))
 		deb.prints(patch_count.shape)
 		print("Test",patch_count)
 		
@@ -611,7 +611,7 @@ class Dataset(NetObject):
 		patch_count=np.zeros(self.class_n)
 
 		for clss in range(self.class_n):
-			patch_count[clss]=np.count_nonzero(np.isin(self.patches['train']['label'].argmax(axis=3),clss).sum(axis=(1,2)))
+			patch_count[clss]=np.count_nonzero(np.isin(self.patches['train']['label'],clss).sum(axis=(1,2)))
 		deb.prints(patch_count.shape)
 		print("Train",patch_count)
 		
@@ -623,11 +623,13 @@ class Dataset(NetObject):
 		balance["out_labels"]=np.zeros((balance["out_n"],) + self.patches["train"]["label"].shape[1::])
 
 		label_int=self.patches['train']['label'].copy() # As opposed to argmax
+		deb.prints(label_int.shape)
 		labels_flat=np.reshape(label_int,(label_int.shape[0],np.prod(label_int.shape[1:])))
+		
 		k=0
-		for clss in range(1,self.class_n):
-			if patch_count[clss]==0:
-				continue
+		for clss in range(0,self.class_n):
+			#if patch_count[clss]==0:
+			#	continue
 			print(labels_flat.shape)
 			print(clss)
 			#print((np.count_nonzero(np.isin(labels_flat,clss))>0).shape)
@@ -660,23 +662,23 @@ class Dataset(NetObject):
 						augmented_label_temp = balance["label"]
 						
 						if cont_transf == 0:
-							augmented_data_temp = np.rot90(augmented_data_temp,1,(2,3))
+							augmented_data_temp = np.rot90(augmented_data_temp,1,(1,2))
 							augmented_label_temp = np.rot90(augmented_label_temp,1,(1,2))
 						
 						elif cont_transf == 1:
-							augmented_data_temp = np.rot90(augmented_data_temp,2,(2,3))
+							augmented_data_temp = np.rot90(augmented_data_temp,2,(1,2))
 							augmented_label_temp = np.rot90(augmented_label_temp,2,(1,2))
 
 						elif cont_transf == 2:
-							augmented_data_temp = np.flip(augmented_data_temp,2)
+							augmented_data_temp = np.flip(augmented_data_temp,1)
 							augmented_label_temp = np.flip(augmented_label_temp,1)
 							
 						elif cont_transf == 3:
-							augmented_data_temp = np.flip(augmented_data_temp,3)
+							augmented_data_temp = np.flip(augmented_data_temp,2)
 							augmented_label_temp = np.flip(augmented_label_temp,2)
 						
 						elif cont_transf == 4:
-							augmented_data_temp = np.rot90(augmented_data_temp,3,(2,3))
+							augmented_data_temp = np.rot90(augmented_data_temp,3,(1,2))
 							augmented_label_temp = np.rot90(augmented_label_temp,3,(1,2))
 							
 						elif cont_transf == 5:
@@ -858,16 +860,12 @@ class NetModel(NetObject):
 		print(self.graph.summary())
 
 	def build(self):
-		deb.prints(self.t_len)
-		in_im = Input(shape=(self.t_len,self.patch_len, self.patch_len, self.channel_n))
-
-		#x = keras.layers.Permute((1,2,0,3))(in_im)
-		x = keras.layers.Permute((2,3,1,4))(in_im)
+		deb.prints(self.channel_n)
+		in_im = Input(shape=(self.patch_len, self.patch_len, self.channel_n))
 		
-		x = Reshape((self.patch_len, self.patch_len,self.t_len*self.channel_n), name='predictions')(x)
-		out = DenseNetFCN((self.patch_len, self.patch_len, self.t_len*self.channel_n), nb_dense_block=2, growth_rate=16, dropout_rate=0.2,
+		out = DenseNetFCN((self.patch_len, self.patch_len, self.channel_n), nb_dense_block=2, growth_rate=16, dropout_rate=0.2,
 						nb_layers_per_block=2, upsampling_type='deconv', classes=self.class_n, 
-						activation='softmax', batchsize=32,input_tensor=x)
+						activation='softmax', batchsize=32,input_tensor=in_im)
 		self.graph = Model(in_im, out)
 		print(self.graph.summary())
 	# def build(self): #Convlstm before
@@ -1014,13 +1012,13 @@ class NetModel(NetObject):
 
 
 		if self.val_set:
-			count,unique=np.unique(data.patches['val']['label'].argmax(axis=3),return_counts=True)
+			count,unique=np.unique(data.patches['val']['label'],return_counts=True)
 			print("Val label count,unique",count,unique)
 
-		count,unique=np.unique(data.patches['train']['label'].argmax(axis=3),return_counts=True)
+		count,unique=np.unique(data.patches['train']['label'],return_counts=True)
 		print("Train count,unique",count,unique)
 		
-		count,unique=np.unique(data.patches['test']['label'].argmax(axis=3),return_counts=True)
+		count,unique=np.unique(data.patches['test']['label'],return_counts=True)
 		print("Test count,unique",count,unique)
 		
 		#==================== ESTIMATE BATCH NUMBER===============================#
@@ -1203,7 +1201,8 @@ if __name__ == '__main__':
 
 	data = Dataset(patch_len=args.patch_len, patch_step_train=args.patch_step_train,
 		patch_step_test=args.patch_step_test,exp_id=args.exp_id,
-		path=args.path, t_len=args.t_len, class_n=args.class_n)
+		path=args.path, t_len=args.t_len, class_n=args.class_n,
+		channel_n=args.channel_n)
 
 	#data.dataset='seq2'
 
@@ -1236,7 +1235,7 @@ if __name__ == '__main__':
 					 patch_step_train=args.patch_step_train, eval_mode=args.eval_mode,
 					 batch_size_train=args.batch_size_train,batch_size_test=args.batch_size_test,
 					 patience=args.patience,t_len=args.t_len,class_n=args.class_n,path=args.path,
-					 val_set=val_set)
+					 val_set=val_set, channel_n=args.channel_n)
 	model.class_n=data.class_n
 	model.build()
 
