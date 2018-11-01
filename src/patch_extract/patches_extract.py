@@ -95,6 +95,8 @@ def patches_extract(im,patch_len,band_n,step,debug=1):
 	return np.squeeze(view_as_windows(im, window_shape, step=step))
 
 def im_reconstruct_from_patches(patches,a):
+	patches=patches.reshape((a.patches_info['rows'], \
+		a.patches_info['cols']) + patches.shape[1:])
 	out=np.zeros(a.im_shape[:-1])
 	for row in range(a.patches_info['rows']):
 		for col in range(a.patches_info['cols']):
@@ -135,10 +137,20 @@ if __name__ == '__main__':
 	patches={}
 	patches['im'] = patches_extract(im,a.patch_len,a.band_n,a.patch_step)
 	patches['label'] = patches_extract(masks['label'],a.patch_len,-1,a.patch_step)
+	patches['train_test'] = patches_extract(masks['train_test'],a.patch_len,-1,a.patch_step)
+	
 	a.im_shape=im.shape
 	a.patches_info={}
 	a.patches_info['rows']=patches['label'].shape[0]
 	a.patches_info['cols']=patches['label'].shape[1]
+
+	deb.prints(patches['label'].shape)
+	deb.prints(patches['im'].shape)
+	
+	#print()
+	patches['im']=patches['im'].reshape((a.patches_info['rows']*a.patches_info['cols'],)+patches['im'].shape[2:])
+	patches['label']=patches['label'].reshape((a.patches_info['rows']*a.patches_info['cols'],)+patches['label'].shape[2:])
+	patches['train_test']=patches['train_test'].reshape((a.patches_info['rows']*a.patches_info['cols'],)+patches['train_test'].shape[2:])
 	
 	# ====== Reconstruct label. Just for assertion here. =====
 	label_reconstruct = im_reconstruct_from_patches(patches['label'],a)
@@ -146,6 +158,31 @@ if __name__ == '__main__':
 	deb.prints(label_reconstruct.shape)
 	deb.prints(np.unique(label_reconstruct))
 	cv2.imwrite("label_reconstruct.png",label_reconstruct*255)
+
+	id_train_test=np.zeros(patches['im'].shape[0])
+	# ====== Train test split
+	for idx in range(patches['im'].shape[0]):
+		if np.all(patches['train_test'][idx]>=1):
+			id_train_test[idx]=True
+		else:
+			id_train_test[idx]=False
+
+	names={"train":{},"test":{}}
+	names['train']['im']='train_ims.npy'
+
+
+	patches_im_name="patches_im.npy"
+	patches_label_name="patches_label.npy"
+	id_train_test_name="id_train_test.npy"
+	
+	np.save(patches_im_name,patches['im'])
+	np.save(patches_label_name,patches['label'])	
+	np.save(id_train_test_name,id_train_test)
+
+	deb.prints(id_train_test.shape)
+	deb.prints(patches['im'][id_train_test==True].shape)
+	deb.prints(patches['im'][id_train_test==False].shape)
+
 
 	# ============== Store patches into npy
 

@@ -206,7 +206,29 @@ class Dataset(NetObject):
 		
 		self.patches['train']['n']=self.patches['train']['in'].shape[0]
 		self.patches['train']['idx']=range(self.patches['train']['n'])
+	def create_load(self):
 
+		patches_im_name=self.path['v']+"patches_im.npy"
+		patches_label_name=self.path['v']+"patches_label.npy"
+		id_train_test_name=self.path['v']+"id_train_test.npy"
+		patches_im=np.load(patches_im_name)
+		patches_label=np.load(patches_label_name)
+		id_train_test=np.load(id_train_test_name)
+
+		self.patches['train']['in']=patches_im[id_train_test==True]
+		self.patches['test']['in']=patches_im[id_train_test==False]
+
+		self.patches['train']['label']=patches_label[id_train_test==True]
+		self.patches['test']['label']=patches_label[id_train_test==False]
+
+		deb.prints(self.patches['train']['in'].shape)
+		deb.prints(self.patches['test']['in'].shape)
+		
+		deb.prints(self.patches['train']['label'].shape)
+		
+		# Additional information
+		self.patches['train']['n']=self.patches['train']['in'].shape[0]
+		self.patches['train']['idx']=range(self.patches['train']['n'])
 	def batch_label_to_one_hot(self,im):
 		im_one_hot=np.zeros((im.shape[0],im.shape[1],im.shape[2],self.class_n))
 		print(im_one_hot.shape)
@@ -600,7 +622,7 @@ class Dataset(NetObject):
 
 		balance["out_labels"]=np.zeros((balance["out_n"],) + self.patches["train"]["label"].shape[1::])
 
-		label_int=self.patches['train']['label'].argmax(axis=3)
+		label_int=self.patches['train']['label'].copy() # As opposed to argmax
 		labels_flat=np.reshape(label_int,(label_int.shape[0],np.prod(label_int.shape[1:])))
 		k=0
 		for clss in range(1,self.class_n):
@@ -761,19 +783,15 @@ class NetModel(NetObject):
 		return pipe
 
 	def build(self):
-		in_im = Input(shape=(self.t_len,self.patch_len, self.patch_len, self.channel_n))
+		in_im = Input(shape=(self.patch_len, self.patch_len, self.channel_n))
 		filters = 64
-
-		#x = keras.layers.Permute((1,2,0,3))(in_im)
-		x = keras.layers.Permute((2,3,1,4))(in_im)
 		
-		x = Reshape((self.patch_len, self.patch_len,self.t_len*self.channel_n), name='predictions')(x)
 		#pipe = {'fwd': [], 'bckwd': []}
 		c = {'init_up': 0, 'up': 0}
 		pipe=[]
 
 		# ================== Transition Down ============================ #
-		pipe.append(self.transition_down(x, filters))  # 0 16x16
+		pipe.append(self.transition_down(in_im, filters))  # 0 16x16
 		pipe.append(self.transition_down(pipe[-1], filters*2))  # 1 8x8
 		pipe.append(self.transition_down(pipe[-1], filters*4))  # 2 4x4
 		pipe.append(self.transition_down(pipe[-1], filters*8))  # 2 4x4
@@ -880,11 +898,12 @@ class NetModel(NetObject):
 	def compile(self, optimizer, loss='binary_crossentropy', metrics=['accuracy',metrics.categorical_accuracy],loss_weights=None):
 		loss_weighted=weighted_categorical_crossentropy(loss_weights)
 		#sparse_accuracy_ignoring_last_label()
-		self.graph.compile(loss=loss_weighted, optimizer=optimizer, metrics=metrics)
+		self.graph.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+		##self.graph.compile(loss=loss_weighted, optimizer=optimizer, metrics=metrics)
 		#self.graph.compile(loss=sparse_accuracy_ignoring_last_label, optimizer=optimizer, metrics=metrics)
 		#self.graph.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
 	def loss_weights_estimate(self,data):
-		unique,count=np.unique(data.patches['train']['label'].argmax(axis=3),return_counts=True)
+		unique,count=np.unique(data.patches['train']['label'],return_counts=True)
 		unique=unique[1:] # No bcknd
 		count=count[1:].astype(np.float32)
 		weights_from_unique=np.max(count)/count
@@ -1193,12 +1212,7 @@ if __name__ == '__main__':
 	elif flag['data_create']==2:
 		data.create_load()
 
-	if data.dataset=='seq1' or data.dataset=='seq2':
-		args.patience=10
-	else:
-		args.patience=15
-	
-	
+	args.patience=10
 	val_set=True
 	#val_set_mode='stratified'
 	val_set_mode='stratified'
@@ -1210,7 +1224,7 @@ if __name__ == '__main__':
 	deb.prints(data.patches['train']['label'].shape)
 	deb.prints(data.patches['test']['label'].shape)
 	
-	unique,count=np.unique(data.patches['test']['label'].argmax(axis=3),return_counts=True)
+	unique,count=np.unique(data.patches['test']['label'],return_counts=True)
 	deb.prints(unique)
 	deb.prints(count)
 	data.label_unique=unique.copy()
@@ -1238,46 +1252,7 @@ if __name__ == '__main__':
 	
 	# If patch balancing
 	
-	if data.dataset=='seq1' or data.dataset=='seq2':
-		data.semantic_balance(500) #Changed from 1000
-	else:
-		data.semantic_balance(300)
-	# ===
-
-	#model.loss_weights=np.array([0.10259888, 0.2107262 , 0.1949083 , 0.20119307, 0.08057474,
-	#   0.20999881]
-	#model.loss_weights=np.array([0,0.04274219, 0.12199843, 0.11601452, 0.12202774, 0.12183601,                                      
-	#   0.1099085 , 0.11723573, 0.00854844, 0.12208636, 0.11760209]).astype(np.float64)
-	#model.loss_weights=np.array([0,1,1,1,1,1,1,1,1,1,1,1]).astype(np.float64)/11
-	#model.loss_weights=np.array([0.        , 0.06051054, 0.13370499, 0.13283712, 0.13405423,
-	#   0.        , 0.13397788, 0.11706449, 0.12805041, 0.03190986,
-	#   0.        , 0.12789048]).astype(np.float64)
-	#model.loss_weights=np.array([0,1.39506639e+00, 2.60304567e+02, 1.03202335e+02, 1.93963056e+04,0,0,
-	 #  6.00161586e+00, 1.66971628e+01, 1.00000000e+00, 0,1.70606546e+01]).astype(np.float64)
-	
-	#model.loss_weights=np.array([0,1.41430758e+00, 2.70356529e+02, 9.87119740e+01, 2.17569417e+05,0,
- #2.43094320e+03, 5.97588208e+00, 1.65553794e+01, 1.00000000e+00,0,
- #1.69903102e+01])
-
-	#model.loss_weights=np.array([0,1.37713256e+00,2.45637517e+02,6.08387646e+01,2.01024432e+03,0,3.79562360e+02, 6.26613648e+00, 1.70359689e+01, 1.00000000e+00,3.90646218e+03 ,1.59325845e+01])
-	# Estimated with test
-	#model.loss_weights=np.array([0,1.37852055e+00, 2.45986531e+02, 6.10172192e+01, 1.97027386e+03,0,3.71352450e+02 ,6.26956560e+00, 1.70878077e+01 ,1.00000000e+00,4.62502597e+03, 1.59184248e+01])
-	# Estimated with train
-	# This is an okay fcn
-	###model.loss_weights=np.array([0, 1.42610349e+00  , 7.30082405e+02  , 1.75681165e+01 ,  1.11196404e+03, 0,3.93620317e+02 ,  8.51592741e+00  , 2.28322375e+01 ,  1.00000000e+00,2.34818768e+03  , 2.45846645e+01])
-	#####model.loss_weights=np.array([0,1,1,1,1,0,1,1,1,1,1,1])
-	#======end cv seq1
-	##model.loss_weights=np.ones(12)
-	##model.loss_weights[0]=0
-	##model.loss_weights/=11
-
-	#=========== cv se12
-
-	#####model.loss_weights=np.array([0,2.87029782e+02 ,1.15257798e+02,0,0,0 ,5.51515771e+01 ,1.45716824e+01, 3.90684535e+01 ,1.00000000e+00 ,4.01800573e+03 ,4.20670477e+01])
-	#model.loss_weights=np.array([0,])
-	#=========== Hannover
-
-	#model.loss_weights=np.array([0,3.32893347, 2.62162162, 1.06386569 ,1.95959596, 1.    ,     7.92583281,2.20570229, 1.17444351])
+	data.semantic_balance(1000)
 
 	metrics=['accuracy']
 	#metrics=['accuracy',fmeasure,categorical_accuracy]
