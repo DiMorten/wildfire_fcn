@@ -213,6 +213,7 @@ class Dataset(NetObject):
 		id_train_test_name=self.path['v']+"id_train_test.npy"
 		patches_im=np.load(patches_im_name)
 		patches_label=np.load(patches_label_name)
+		patches_label=np.expand_dims(patches_label,axis=3)
 		id_train_test=np.load(id_train_test_name)
 
 		self.patches['train']['in']=patches_im[id_train_test==True]
@@ -526,7 +527,7 @@ class Dataset(NetObject):
 		out=cv2.cvtColor(out.astype(np.uint8),cv2.COLOR_RGB2BGR)
 		return out
 	def val_set_get(self,mode='stratified',validation_split=0.2):
-		clss_train_unique,clss_train_count=np.unique(self.patches['train']['label'],return_counts=True)
+		clss_train_unique,clss_train_count=np.unique(self.patches['train']['label'].argmax(axis=3),return_counts=True)
 		deb.prints(clss_train_count)
 		self.patches['val']={'n':int(self.patches['train']['n']*validation_split)}
 		
@@ -545,7 +546,7 @@ class Dataset(NetObject):
 				self.patches['val']['in']=self.patches['train']['in'][self.patches['val']['idx']]
 				self.patches['val']['label']=self.patches['train']['label'][self.patches['val']['idx']]
 		
-				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'],return_counts=True)
+				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'].argmax(axis=3),return_counts=True)
 				
 				if not np.array_equal(clss_train_unique,clss_val_unique):
 					deb.prints(clss_train_unique)
@@ -569,7 +570,7 @@ class Dataset(NetObject):
 
 				self.patches['val']['in']=self.patches['train']['in'][self.patches['val']['idx']]
 				self.patches['val']['label']=self.patches['train']['label'][self.patches['val']['idx']]
-				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'],return_counts=True)
+				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'].argmax(axis=3),return_counts=True)
 						
 				deb.prints(clss_train_unique)
 				deb.prints(clss_val_unique)
@@ -603,7 +604,7 @@ class Dataset(NetObject):
 		patch_count=np.zeros(self.class_n)
 
 		for clss in range(self.class_n):
-			patch_count[clss]=np.count_nonzero(np.isin(self.patches['test']['label'],clss).sum(axis=(1,2)))
+			patch_count[clss]=np.count_nonzero(np.isin(self.patches['test']['label'].argmax(axis=3),clss).sum(axis=(1,2)))
 		deb.prints(patch_count.shape)
 		print("Test",patch_count)
 		
@@ -611,7 +612,7 @@ class Dataset(NetObject):
 		patch_count=np.zeros(self.class_n)
 
 		for clss in range(self.class_n):
-			patch_count[clss]=np.count_nonzero(np.isin(self.patches['train']['label'],clss).sum(axis=(1,2)))
+			patch_count[clss]=np.count_nonzero(np.isin(self.patches['train']['label'].argmax(axis=3),clss).sum(axis=(1,2)))
 		deb.prints(patch_count.shape)
 		print("Train",patch_count)
 		
@@ -622,7 +623,7 @@ class Dataset(NetObject):
 
 		balance["out_labels"]=np.zeros((balance["out_n"],) + self.patches["train"]["label"].shape[1::])
 
-		label_int=self.patches['train']['label'].copy() # As opposed to argmax
+		label_int=self.patches['train']['label'].argmax(axis=3) # As opposed to argmax
 		deb.prints(label_int.shape)
 		labels_flat=np.reshape(label_int,(label_int.shape[0],np.prod(label_int.shape[1:])))
 		
@@ -864,8 +865,8 @@ class NetModel(NetObject):
 		in_im = Input(shape=(self.patch_len, self.patch_len, self.channel_n))
 		
 		out = DenseNetFCN((self.patch_len, self.patch_len, self.channel_n), nb_dense_block=2, growth_rate=16, dropout_rate=0.2,
-						nb_layers_per_block=2, upsampling_type='deconv', classes=self.class_n, 
-						activation='softmax', batchsize=32,input_tensor=in_im)
+						nb_layers_per_block=2, upsampling_type='deconv', classes=1, 
+						activation='sigmoid', batchsize=32,input_tensor=in_im)
 		self.graph = Model(in_im, out)
 		print(self.graph.summary())
 	# def build(self): #Convlstm before
@@ -901,9 +902,10 @@ class NetModel(NetObject):
 		#self.graph.compile(loss=sparse_accuracy_ignoring_last_label, optimizer=optimizer, metrics=metrics)
 		#self.graph.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
 	def loss_weights_estimate(self,data):
-		unique,count=np.unique(data.patches['train']['label'],return_counts=True)
-		unique=unique[1:] # No bcknd
-		count=count[1:].astype(np.float32)
+		unique,count=np.unique(data.patches['train']['label'].argmax(axis=3),return_counts=True)
+		print("train label pixel",unique,count)
+		#unique=unique[1:] # No bcknd
+		count=count.astype(np.float32)
 		weights_from_unique=np.max(count)/count
 		deb.prints(weights_from_unique)
 		deb.prints(np.max(count))
@@ -1012,13 +1014,13 @@ class NetModel(NetObject):
 
 
 		if self.val_set:
-			count,unique=np.unique(data.patches['val']['label'],return_counts=True)
+			count,unique=np.unique(data.patches['val']['label'].argmax(axis=3),return_counts=True)
 			print("Val label count,unique",count,unique)
 
-		count,unique=np.unique(data.patches['train']['label'],return_counts=True)
+		count,unique=np.unique(data.patches['train']['label'].argmax(axis=3),return_counts=True)
 		print("Train count,unique",count,unique)
 		
-		count,unique=np.unique(data.patches['test']['label'],return_counts=True)
+		count,unique=np.unique(data.patches['test']['label'].argmax(axis=3),return_counts=True)
 		print("Test count,unique",count,unique)
 		
 		#==================== ESTIMATE BATCH NUMBER===============================#
