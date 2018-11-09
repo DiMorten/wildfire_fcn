@@ -358,46 +358,59 @@ class Dataset(NetObject):
 		return np.equal(val1,val2)
 
 
-	def metrics_get(self,data,ignore_bcknd=True,debug=1): #requires batch['prediction'],batch['label']
+	def metrics_get(self,data,ignore_bcknd=False,debug=1): #requires batch['prediction'],batch['label']
 		
-
-		# ==========================IMGS FLATTEN ==========================================#
-		data['prediction_h'] = self.ims_flatten(data['prediction'])
-		data['prediction_h']=self.probabilities_to_one_hot(data['prediction_h'])
-				
-		data['label_h'] = self.ims_flatten(data['label']) #(self.batch['test']['size']*self.patch_len*self.patch_len,self.class_n
-
-
-		if ignore_bcknd==True:
-			data['prediction_h']=data['prediction_h'][:,1:]
-			data['label_h']=data['label_h'][:,1:]
-
-			if debug>0:
-				deb.prints(data['label_h'].shape)
-				deb.prints(data['prediction_h'].shape)
-			#indices_to_keep=data['prediction_h']
-			#data['prediction_h']=data['prediction_h'][:,data['prediction_h']!=0]
-			data['prediction_h']=data['prediction_h'][~np.all(data['label_h'] == 0, axis=1)]
-			data['label_h']=data['label_h'][~np.all(data['label_h'] == 0, axis=1)]
+		binary=True
+		if binary:
+			data['prediction_h']=data['prediction'].reshape(-1)
+			data['prediction_h'][data['prediction_h']>0.5]=1
+			data['prediction_h'][data['prediction_h']<=0.5]=0
 			
-			#for row in range(0,data['label_h'].shape[0]):
-			#	if np.sum(data['label_h'][row,:])==0:
-			#		np.delete(data['label_h'],row,0)
-			#		np.delete(data['prediction_h'],row,0)
+			data['label_h']=data['label'].reshape(-1)
 
-
-		if debug>=1: 
-			deb.prints(data['prediction_h'].dtype)
-			deb.prints(data['label_h'].dtype)
+			deb.prints(np.unique(data['prediction_h'],return_counts=True))
 			deb.prints(data['prediction_h'].shape)
+			deb.prints(np.unique(data['label_h'],return_counts=True))
 			deb.prints(data['label_h'].shape)
-			deb.prints(data['label_h'][0])
-			deb.prints(data['prediction_h'][0])
+			
+		else:		
+			# ==========================IMGS FLATTEN ==========================================#
+			data['prediction_h'] = self.ims_flatten(data['prediction'])
+			data['prediction_h']=self.probabilities_to_one_hot(data['prediction_h'])
+					
+			data['label_h'] = self.ims_flatten(data['label']) #(self.batch['test']['size']*self.patch_len*self.patch_len,self.class_n
+
+
+			if ignore_bcknd==True:
+				data['prediction_h']=data['prediction_h'][:,1:]
+				data['label_h']=data['label_h'][:,1:]
+
+				if debug>0:
+					deb.prints(data['label_h'].shape)
+					deb.prints(data['prediction_h'].shape)
+				#indices_to_keep=data['prediction_h']
+				#data['prediction_h']=data['prediction_h'][:,data['prediction_h']!=0]
+				data['prediction_h']=data['prediction_h'][~np.all(data['label_h'] == 0, axis=1)]
+				data['label_h']=data['label_h'][~np.all(data['label_h'] == 0, axis=1)]
+				
+				#for row in range(0,data['label_h'].shape[0]):
+				#	if np.sum(data['label_h'][row,:])==0:
+				#		np.delete(data['label_h'],row,0)
+				#		np.delete(data['prediction_h'],row,0)
+
+
+			if debug>=1: 
+				deb.prints(data['prediction_h'].dtype)
+				deb.prints(data['label_h'].dtype)
+				deb.prints(data['prediction_h'].shape)
+				deb.prints(data['label_h'].shape)
+				deb.prints(data['label_h'][0])
+				deb.prints(data['prediction_h'][0])
 
 		#============= TEST UNIQUE PRINTING==================#
-		unique,count=np.unique(data['label_h'].argmax(axis=1),return_counts=True)
+		unique,count=np.unique(data['label_h'],return_counts=True)
 		print("Metric real unique+1,count",unique+1,count)
-		unique,count=np.unique(data['prediction_h'].argmax(axis=1),return_counts=True)
+		unique,count=np.unique(data['prediction_h'],return_counts=True)
 		print("Metric prediction unique+1,count",unique+1,count)
 		
 		#========================METRICS GET================================================#
@@ -406,7 +419,7 @@ class Dataset(NetObject):
 		metrics['f1_score_weighted']=f1_score(data['label_h'],data['prediction_h'],average='weighted')
 		
 		metrics['overall_acc']=accuracy_score(data['label_h'],data['prediction_h'])
-		metrics['confusion_matrix']=confusion_matrix(data['label_h'].argmax(axis=1),data['prediction_h'].argmax(axis=1))
+		metrics['confusion_matrix']=confusion_matrix(data['label_h'],data['prediction_h'])
 		metrics['per_class_acc']=(metrics['confusion_matrix'].astype('float') / metrics['confusion_matrix'].sum(axis=1)[:, np.newaxis]).diagonal()
 		
 		metrics['average_acc']=np.average(metrics['per_class_acc'][~np.isnan(metrics['per_class_acc'])])
@@ -420,7 +433,7 @@ class Dataset(NetObject):
 			deb.prints(data_label_reconstructed.shape)
 			np.testing.assert_almost_equal(data['label'],data_label_reconstructed)
 			print("Is label reconstructed equal to original",np.array_equal(data['label'],data_label_reconstructed))
-			print("Is prediction reconstructed equal to original",np.array_equal(data['prediction'].argmax(axis=3),data_prediction_reconstructed.argmax(axis=3)))
+			print("Is prediction reconstructed equal to original",np.array_equal(np.squeeze(data['prediction']),np.squeeze(data_prediction_reconstructed)))
 
 		if self.debug>=2: print(metrics['per_class_acc'])
 
@@ -491,7 +504,7 @@ class Dataset(NetObject):
 		
 		h_blocks,w_blocks,patch_len,_=self.patches[subset]['label_partitioned_shape']
 
-		patches_block=np.reshape(self.patches[subset][mode].argmax(axis=3),(h_blocks,w_blocks,patch_len,patch_len))
+		patches_block=np.reshape(np.squeeze(self.patches[subset][mode]),(h_blocks,w_blocks,patch_len,patch_len))
 
 
 		self.im_reconstructed=np.squeeze(np.zeros_like(self.image[subset]['label']))
@@ -527,7 +540,7 @@ class Dataset(NetObject):
 		out=cv2.cvtColor(out.astype(np.uint8),cv2.COLOR_RGB2BGR)
 		return out
 	def val_set_get(self,mode='stratified',validation_split=0.2):
-		clss_train_unique,clss_train_count=np.unique(self.patches['train']['label'].argmax(axis=3),return_counts=True)
+		clss_train_unique,clss_train_count=np.unique(np.squeeze(self.patches['train']['label']),return_counts=True)
 		deb.prints(clss_train_count)
 		self.patches['val']={'n':int(self.patches['train']['n']*validation_split)}
 		
@@ -546,7 +559,7 @@ class Dataset(NetObject):
 				self.patches['val']['in']=self.patches['train']['in'][self.patches['val']['idx']]
 				self.patches['val']['label']=self.patches['train']['label'][self.patches['val']['idx']]
 		
-				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'].argmax(axis=3),return_counts=True)
+				clss_val_unique,clss_val_count=np.unique(np.squeeze(self.patches['val']['label']),return_counts=True)
 				
 				if not np.array_equal(clss_train_unique,clss_val_unique):
 					deb.prints(clss_train_unique)
@@ -570,7 +583,7 @@ class Dataset(NetObject):
 
 				self.patches['val']['in']=self.patches['train']['in'][self.patches['val']['idx']]
 				self.patches['val']['label']=self.patches['train']['label'][self.patches['val']['idx']]
-				clss_val_unique,clss_val_count=np.unique(self.patches['val']['label'].argmax(axis=3),return_counts=True)
+				clss_val_unique,clss_val_count=np.unique(np.squeeze(self.patches['val']['label']),return_counts=True)
 						
 				deb.prints(clss_train_unique)
 				deb.prints(clss_val_unique)
@@ -604,7 +617,7 @@ class Dataset(NetObject):
 		patch_count=np.zeros(self.class_n)
 
 		for clss in range(self.class_n):
-			patch_count[clss]=np.count_nonzero(np.isin(self.patches['test']['label'].argmax(axis=3),clss).sum(axis=(1,2)))
+			patch_count[clss]=np.count_nonzero(np.isin(np.squeeze(self.patches['test']['label']),clss).sum(axis=(1,2)))
 		deb.prints(patch_count.shape)
 		print("Test",patch_count)
 		
@@ -612,7 +625,7 @@ class Dataset(NetObject):
 		patch_count=np.zeros(self.class_n)
 
 		for clss in range(self.class_n):
-			patch_count[clss]=np.count_nonzero(np.isin(self.patches['train']['label'].argmax(axis=3),clss).sum(axis=(1,2)))
+			patch_count[clss]=np.count_nonzero(np.isin(np.squeeze(self.patches['train']['label']),clss).sum(axis=(1,2)))
 		deb.prints(patch_count.shape)
 		print("Train",patch_count)
 		
@@ -623,7 +636,7 @@ class Dataset(NetObject):
 
 		balance["out_labels"]=np.zeros((balance["out_n"],) + self.patches["train"]["label"].shape[1::])
 
-		label_int=self.patches['train']['label'].argmax(axis=3) # As opposed to argmax
+		label_int=np.squeeze(self.patches['train']['label']) # As opposed to argmax
 		deb.prints(label_int.shape)
 		labels_flat=np.reshape(label_int,(label_int.shape[0],np.prod(label_int.shape[1:])))
 		
@@ -902,7 +915,7 @@ class NetModel(NetObject):
 		#self.graph.compile(loss=sparse_accuracy_ignoring_last_label, optimizer=optimizer, metrics=metrics)
 		#self.graph.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
 	def loss_weights_estimate(self,data):
-		unique,count=np.unique(data.patches['train']['label'].argmax(axis=3),return_counts=True)
+		unique,count=np.unique(np.squeeze(data.patches['train']['label']),return_counts=True)
 		print("train label pixel",unique,count)
 		#unique=unique[1:] # No bcknd
 		count=count.astype(np.float32)
@@ -1014,13 +1027,13 @@ class NetModel(NetObject):
 
 
 		if self.val_set:
-			count,unique=np.unique(data.patches['val']['label'].argmax(axis=3),return_counts=True)
+			count,unique=np.unique(np.squeeze(data.patches['val']['label']),return_counts=True)
 			print("Val label count,unique",count,unique)
 
-		count,unique=np.unique(data.patches['train']['label'].argmax(axis=3),return_counts=True)
+		count,unique=np.unique(np.squeeze(data.patches['train']['label']),return_counts=True)
 		print("Train count,unique",count,unique)
 		
-		count,unique=np.unique(data.patches['test']['label'].argmax(axis=3),return_counts=True)
+		count,unique=np.unique(np.squeeze(data.patches['test']['label']),return_counts=True)
 		print("Test count,unique",count,unique)
 		
 		#==================== ESTIMATE BATCH NUMBER===============================#
@@ -1080,7 +1093,7 @@ class NetModel(NetObject):
 
 				# Get val metrics
 
-				metrics_val=data.metrics_get(data.patches['val'],debug=0)
+				metrics_val=data.metrics_get(data.patches['val'],debug=1)
 
 				self.early_stop_check(metrics_val,epoch)
 				#if epoch==1000 or epoch==700 or epoch==500 or epoch==1200:
@@ -1097,9 +1110,9 @@ class NetModel(NetObject):
 				if epoch % 5 == 0:
 					print("Writing val...")
 					#print(txt['val']['metrics'])
-					for i in range(len(txt['val']['metrics'])):
-						data.metrics_write_to_txt(txt['val']['metrics'][i],np.squeeze(txt['val']['loss'][i]),
-							txt['val']['epoch'][i],path=self.report['val']['history_path'])
+					##for i in range(len(txt['val']['metrics'])):
+					##	data.metrics_write_to_txt(txt['val']['metrics'][i],np.squeeze(txt['val']['loss'][i]),
+					##		txt['val']['epoch'][i],path=self.report['val']['history_path'])
 					txt['val']['metrics']=[]
 					txt['val']['loss']=[]
 					txt['val']['epoch']=[]
@@ -1150,10 +1163,10 @@ class NetModel(NetObject):
 			# Check early stop and store results if they are the best
 			if epoch % 5 == 0:
 				print("Writing to file...")
-				for i in range(len(txt['test']['metrics'])):
+				#for i in range(len(txt['test']['metrics'])):
 
-					data.metrics_write_to_txt(txt['test']['metrics'][i],np.squeeze(txt['test']['loss'][i]),
-						txt['test']['epoch'][i],path=self.report['best']['text_history_path'])
+					#data.metrics_write_to_txt(txt['test']['metrics'][i],np.squeeze(txt['test']['loss'][i]),
+					#	txt['test']['epoch'][i],path=self.report['best']['text_history_path'])
 				txt['test']['metrics']=[]
 				txt['test']['loss']=[]
 				txt['test']['epoch']=[]

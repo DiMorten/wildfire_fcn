@@ -75,3 +75,7 @@ src/repeat_results.pickle
 *.tmp*
 *repeat_results.pickle
 *.directory
+
+*.joblib
+*.h5
+*.kate-swp
