@@ -95,18 +95,26 @@ def fortran_flatten(img):
 	DIM = img.shape
 	return img.reshape(DIM[0] * DIM[1], order='F')
 
-def im_load(path):
-
-
+def im_load(path,dataset,source):
 	# Read image
-	im = gdal.Open(path['raster'])
-	im = np.array(im.ReadAsArray())
-	im = np.transpose(im, (1, 2, 0))
+	if source=='tiff':
+		im = gdal.Open(path['raster'])
+		im = np.array(im.ReadAsArray())
+		im = np.transpose(im, (1, 2, 0))
+		im = im.astype(np.float32)
+	elif source=='matlab':
+		#print(images_list[seq[0]-1])
+	    h5file = h5py.File(path['raster'],'r')
+	    fileHeader = h5file['dataset']
+	    print(fileHeader)
+	    im = np.float32(fileHeader).T
+	    h5file.close()
+	    print(im.shape)
 	if dataset=='para':
 		im = im[0:-1,0:-1,:] # Eliminate non used pixels
 	elif dataset=='acre':
 		im = im[0:-1,:,:]
-	im = im.astype(np.float32)
+	
 	deb.prints(im.shape)
 	deb.prints(im.dtype)
 
@@ -135,7 +143,7 @@ def statistics_print(label,mask,label_train):
 	print("Label",label.shape)
 	print("Mask",mask.shape)
 
-def path_configure(dataset):
+def path_configure(dataset,source='tiff'):
 
 	path={}
 	if dataset=='para':
@@ -145,7 +153,13 @@ def path_configure(dataset):
 		path['bounding_box']=path['data']+'bounding_box_pa_clip.tif'
 	elif dataset=='acre':
 		path['data']='../../data/AP2_Acre/'
-		path['raster']=path['data']+'L8_002-67_ROI.tif'
+		if source=='tiff':
+			path['raster']=path['data']+'L8_002-67_ROI.tif'
+		elif source=='matlab':
+			path['raster']='/home/lvc/Jorg/igarss/wildfire_fcn/data/AP2_Acre/dataset.h5'
+			
+			#path['raster']='/home/lvc/Jorg/igarss/wildfire_fcn/data/AP2_Acre/acre_matched.mat'
+			#path['raster']=path['data']+'acre_matched.mat'
 		path['label']=path['data']+'labels.tif'
 		path['bounding_box']=path['data']+'bounding_box_clip.tif'
 	path['train_test_mask']=path['data']+'TrainTestMask.png'
@@ -169,54 +183,64 @@ def mask_label_load(path):
 
 	return mask,label
 
+def dataset_load(dataset,source='tiff'):
+	path=path_configure(dataset,source)
+	mask,label=mask_label_load(path)
+
+	# ================== STACK IMAGES ============================  
+	im=im_load(path,dataset,source=source)
+	deb.prints(mask.shape)
+	# ================== MASK THE IMAGES ===================
+	features_train=im[mask==2]
+	features_test=im[mask==1]
+	del im
+
+	label_train=label[mask==2]
+	label_test=label[mask==1]
+
+	label=label[mask!=0]
+	mask=mask[mask!=0]
+
+	print(features_train.shape)
+	print(features_test.shape)
+
+
+	#================= PRINT STATISTICS===============
+	statistics_print(label,mask,label_train)
+
+
+
+	# ================== Normalize
+
+	scaler = pp.StandardScaler().fit(features_train)
+	features_train = scaler.transform(features_train)
+	features_test = scaler.transform(features_test)
+
+	samples_per_class=300000
+
+
+	# ================== DATA BALANCE ============================
+
+
+	features_train, label_train=balance_data(features_train, label_train, 
+		samples_per_class=samples_per_class)
+	return features_train, label_train, features_test, label_test
+
 #================== DEFINE FILENAMES =======================
-load_other_model=True
+load_other_model=False
+source_format='matlab'
+dataset='acre'
+features_train_source, label_train_source, _, _=dataset_load(dataset, source=source_format)
 
-#dataset='acre'
 dataset='para'
-path=path_configure(dataset)
-mask,label=mask_label_load(path)
-
-#============= LOAD GLCM DATA AND TRAIN=======================
+features_train_target, label_train_target, features_test, label_test=dataset_load(dataset)
 
 
-# ================== STACK IMAGES ============================  
-im=im_load(path)
-deb.prints(mask.shape)
-# ================== MASK THE IMAGES ===================
-features_train=im[mask==2]
-features_test=im[mask==1]
-del im
+print(features_train_source.shape)
+print(features_train_target.shape)
 
-label_train=label[mask==2]
-label_test=label[mask==1]
-
-label=label[mask!=0]
-mask=mask[mask!=0]
-
-print(features_train.shape)
-print(features_test.shape)
-
-
-#================= PRINT STATISTICS===============
-statistics_print(label,mask,label_train)
-
-
-
-# ================== Normalize
-
-scaler = pp.StandardScaler().fit(features_train)
-features_train = scaler.transform(features_train)
-features_test = scaler.transform(features_test)
-
-samples_per_class=300000
-
-
-# ================== DATA BALANCE ============================
-
-
-features_train, label_train=balance_data(features_train, label_train, 
-	samples_per_class=samples_per_class)
+features_train=np.concatenate((features_train_source,features_train_target),axis=0)
+label_train=np.concatenate((label_train_source,label_train_target),axis=0)
 
 print(features_train.shape) #(600000, 6)
 print(label_train.shape) #(600000)
