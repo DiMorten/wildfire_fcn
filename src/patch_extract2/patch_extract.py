@@ -80,9 +80,11 @@ def view_as_windows_flat(im,window_shape,step=1):
 	deb.prints(patch.shape)
 	return patch
 
+dataset='acre'
+
+
 im_path='../../data/AP2_Acre/L8_002-67_ROI.tif'
 
-dataset='acre'
 path=path_configure(dataset,source='tiff',train_test_mask='train_test_mask_ac_target.png')
 mask,label=mask_label_load(path)
 im=im_load(path,dataset)
@@ -98,7 +100,8 @@ from  skimage.util import view_as_windows
 
 window_len=128
 channel_n=6
-patches_step=int(window_len/2)
+patches_step=int(window_len/3)
+deb.prints(patches_step)
 window_shape=(window_len,window_len,channel_n)
 patches={}
 patches['im']=view_as_windows_flat(im,window_shape,step=patches_step)
@@ -109,3 +112,19 @@ deb.prints(patches['im'].shape)
 patches['target']={}
 patches['source']={}
 
+def patches_domain_gather(patches,mask,domain,axis=(1,2)):
+	return patches[np.any(mask==domain,axis=axis),::]
+
+patches['target']['im']=patches_domain_gather(patches['im'],patches['mask'],2)
+patches['source']['im']=patches_domain_gather(patches['im'],patches['mask'],1)
+
+del patches['im']
+#patches['target']['mask']=patches_domain_gather(patches['mask'],patches['mask'],2)
+#patches['source']['im']=patches_domain_gather(patches['im'],1)
+
+#patches['mask'][np.any(patches['mask']==2,axis=(1,2)),::]
+#patches['source']['mask']=patches['mask'][np.any(patches['mask']==1,axis=(1,2)),::]
+#del patches['mask']
+
+deb.prints(patches['target']['im'].shape)
+deb.prints(patches['source']['im'].shape)
