@@ -79,3 +79,4 @@ src/repeat_results.pickle
 *.joblib
 *.h5
 *.kate-swp
+*.mat

@@ -235,7 +235,11 @@ if train_mode:
     print('Training finished, time of executuion ')
 
 if load_other_model==True:
-    clf = joblib.load('results/acre/trained_classifier.joblib') 
+   # clf = joblib.load('results/acre/trained_classifier.joblib') 
+    # Matched
+    clf = joblib.load('results/acre/trained_classifier_matched_source.joblib') 
+
+    
 
 # predict
 #start_time = time.time()

@@ -196,7 +196,51 @@ def dataset_load(dataset,source='tiff'):
 	# ================== MASK THE IMAGES ===================
 	features_train=im[mask==2]
 	features_test=im[mask==1]
-	del im
+	#del im
+
+	label_train=label[mask==2]
+	label_test=label[mask==1]
+
+	label=label[mask!=0]
+	mask=mask[mask!=0]
+
+	print(features_train.shape)
+	print(features_test.shape)
+
+
+	#================= PRINT STATISTICS===============
+	statistics_print(label,mask,label_train)
+
+
+
+	# ================== Normalize
+
+	scaler = pp.StandardScaler().fit(features_train)
+	features_train = scaler.transform(features_train)
+	features_test = scaler.transform(features_test)
+
+	samples_per_class=300000
+
+
+	# ================== DATA BALANCE ============================
+
+
+	features_train, label_train=balance_data(features_train, label_train, 
+		samples_per_class=samples_per_class)
+	return features_train, label_train, features_test, label_test,im
+
+
+def dataset_load_from_im(dataset,im,source='tiff'):
+	path=path_configure(dataset,source)
+	mask,label=mask_label_load(path)
+
+	# ================== STACK IMAGES ============================  
+	#im=im_load(path,dataset,source=source)
+	deb.prints(mask.shape)
+	# ================== MASK THE IMAGES ===================
+	features_train=im[mask==2]
+	features_test=im[mask==1]
+	#del im
 
 	label_train=label[mask==2]
 	label_test=label[mask==1]
@@ -229,21 +273,70 @@ def dataset_load(dataset,source='tiff'):
 		samples_per_class=samples_per_class)
 	return features_train, label_train, features_test, label_test
 
+def hist_match(source, template):
+    """
+    Adjust the pixel values of a grayscale image such that its histogram
+    matches that of a target image
+
+    Arguments:
+    -----------
+        source: np.ndarray
+            Image to transform; the histogram is computed over the flattened
+            array
+        template: np.ndarray
+            Template image; can have different dimensions to source
+    Returns:
+    -----------
+        matched: np.ndarray
+            The transformed output image
+    """
+
+    oldshape = source.shape
+    source = source.ravel()
+    template = template.ravel()
+
+    # get the set of unique pixel values and their corresponding indices and
+    # counts
+    s_values, bin_idx, s_counts = np.unique(source, return_inverse=True,
+                                            return_counts=True)
+    t_values, t_counts = np.unique(template, return_counts=True)
+
+    # take the cumsum of the counts and normalize by the number of pixels to
+    # get the empirical cumulative distribution functions for the source and
+    # template images (maps pixel value --> quantile)
+    s_quantiles = np.cumsum(s_counts).astype(np.float64)
+    s_quantiles /= s_quantiles[-1]
+    t_quantiles = np.cumsum(t_counts).astype(np.float64)
+    t_quantiles /= t_quantiles[-1]
+
+    # interpolate linearly to find the pixel values in the template image
+    # that correspond most closely to the quantiles in the source image
+    interp_t_values = np.interp(s_quantiles, t_quantiles, t_values)
+
+    return interp_t_values[bin_idx].reshape(oldshape)
 #================== DEFINE FILENAMES =======================
-load_other_model=False
-source_format='matlab'
+load_other_model=True
+#source_format='matlab'
+source_format='tiff'
+match=False
 dataset='acre'
-features_train_source, label_train_source, _, _=dataset_load(dataset, source=source_format)
+features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format)
 
 dataset='para'
-features_train_target, label_train_target, features_test, label_test=dataset_load(dataset)
+features_train_target, label_train_target, features_test, label_test,para_im=dataset_load(dataset)
+
+if match==True:
+	matched=hist_match(acre_im,para_im)
+	dataset='acre'
+	features_train, label_train, features_test, label_test=dataset_load_from_im(dataset,matched)
 
 
-print(features_train_source.shape)
-print(features_train_target.shape)
 
-features_train=np.concatenate((features_train_source,features_train_target),axis=0)
-label_train=np.concatenate((label_train_source,label_train_target),axis=0)
+print(features_train.shape)
+#print(features_train_target.shape)
+
+#features_train=np.concatenate((features_train_source,features_train_target),axis=0)
+#label_train=np.concatenate((label_train_source,label_train_target),axis=0)
 
 print(features_train.shape) #(600000, 6)
 print(label_train.shape) #(600000)
