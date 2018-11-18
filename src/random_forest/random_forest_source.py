@@ -95,6 +95,8 @@ def fortran_flatten(img):
 	DIM = img.shape
 	return img.reshape(DIM[0] * DIM[1], order='F')
 
+def unique_count_print(x):
+	deb.prints(np.unique(x,return_counts=True))
 def im_load(path,dataset,source):
 	# Read image
 	if source=='tiff':
@@ -146,7 +148,7 @@ def statistics_print(label,mask,label_train):
 	print("Label",label.shape)
 	print("Mask",mask.shape)
 
-def path_configure(dataset,source='tiff'):
+def path_configure(dataset,source='tiff',train_test_mask='TrainTestMask.png'):
 
 	path={}
 	if dataset=='para':
@@ -165,47 +167,52 @@ def path_configure(dataset,source='tiff'):
 			#path['raster']=path['data']+'acre_matched.mat'
 		path['label']=path['data']+'labels.tif'
 		path['bounding_box']=path['data']+'bounding_box_clip.tif'
-	path['train_test_mask']=path['data']+'TrainTestMask.png'
+	path['train_test_mask']=path['data']+train_test_mask
 	return path	
 
-def mask_label_load(path):
+def mask_label_load(path,flatten=True):
 
+	deb.prints(path['train_test_mask'])
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
+	unique_count_print(mask)
 	label=cv2.imread(path['label'],-1).astype(np.uint8)
 	label[label==2]=1 # Only use 2 classes
 	label=label+1 # 0 is for background
 
 	bounding_box=cv2.imread(path['bounding_box'],-1).astype(np.uint8)
-	mask[mask==255]=1
-	mask=mask+1
+	#mask[mask==255]=1
+	#mask=mask+1
 	mask[bounding_box==0]=0 # Background. No data
 	label[bounding_box==0]=0 # Background. No data
-	mask=mask.reshape(-1)
-	label=label.reshape(-1)
+	if flatten==True:
+		mask=mask.reshape(-1)
+		label=label.reshape(-1)
 	# Not quite necessary to do this but more informative
 
 	return mask,label
 
-def dataset_load(dataset,source='tiff'):
-	path=path_configure(dataset,source)
+def dataset_load(dataset,source='tiff',train_test_mask='TrainTestMask.png'):
+	path=path_configure(dataset,source,train_test_mask=train_test_mask)
 	mask,label=mask_label_load(path)
 
+	unique_count_print(mask)
+	unique_count_print(label)
 	# ================== STACK IMAGES ============================  
 	im=im_load(path,dataset,source=source)
 	deb.prints(mask.shape)
 	# ================== MASK THE IMAGES ===================
-	features_train=im[mask==2]
-	features_test=im[mask==1]
+	features_train=im[mask==1]
+	features_test=im[mask==2]
 	#del im
 
-	label_train=label[mask==2]
-	label_test=label[mask==1]
+	label_train=label[mask==1]
+	label_test=label[mask==2]
 
 	label=label[mask!=0]
 	mask=mask[mask!=0]
 
-	print(features_train.shape)
-	print(features_test.shape)
+	deb.prints(features_train.shape)
+	deb.prints(features_test.shape)
 
 
 	#================= PRINT STATISTICS===============
@@ -315,15 +322,17 @@ def hist_match(source, template):
 
     return interp_t_values[bin_idx].reshape(oldshape)
 #================== DEFINE FILENAMES =======================
-load_other_model=True
+load_other_model=False
+cross_raster=False
 #source_format='matlab'
 source_format='tiff'
 match=False
 dataset='acre'
-features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format)
+features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format,train_test_mask='train_test_mask_ac_target.png')
 
-dataset='para'
-features_train_target, label_train_target, features_test, label_test,para_im=dataset_load(dataset)
+if cross_raster:
+	dataset='para'
+	features_train_target, label_train_target, features_test, label_test,para_im=dataset_load(dataset)
 
 if match==True:
 	matched=hist_match(acre_im,para_im)
@@ -338,8 +347,8 @@ print(features_train.shape)
 #features_train=np.concatenate((features_train_source,features_train_target),axis=0)
 #label_train=np.concatenate((label_train_source,label_train_target),axis=0)
 
-print(features_train.shape) #(600000, 6)
-print(label_train.shape) #(600000)
+deb.prints(features_train.shape) #(600000, 6)
+deb.prints(label_train.shape) #(600000)
 
 
 
