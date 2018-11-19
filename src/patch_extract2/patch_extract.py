@@ -72,13 +72,16 @@ def mask_label_load(path,flatten=False):
 		label=label.reshape(-1)
 	# Not quite necessary to do this but more informative
 
-	return mask,label
+	return mask,label,bounding_box
 
 def view_as_windows_flat(im,window_shape,step=1):
-	patch=np.squeeze(view_as_windows(im,window_shape,step))
+	info={}
+	patch=view_as_windows(im,window_shape,step)
+	windows_shape=patch.shape
+	patch=np.squeeze(patch)
 	patch=np.reshape(patch,(patch.shape[0]*patch.shape[1],)+patch.shape[2:])
 	deb.prints(patch.shape)
-	return patch
+	return patch,windows_shape
 
 dataset='acre'
 
@@ -86,7 +89,7 @@ dataset='acre'
 im_path='../../data/AP2_Acre/L8_002-67_ROI.tif'
 
 path=path_configure(dataset,source='tiff',train_test_mask='train_test_mask_ac_target.png')
-mask,label=mask_label_load(path)
+mask,label,bounding_box=mask_label_load(path)
 im=im_load(path,dataset)
 deb.prints(im.shape)
 deb.prints(mask.shape)
@@ -96,6 +99,46 @@ mask=mask.astype(np.uint8)
 label=label.astype(np.uint8)
 im=im.astype(np.float32)
 
+
+# ======== Normalize ==============
+
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+def stats_print(x):
+    print(np.min(x),np.max(x),np.average(x),x.dtype)
+# stats_print(im)
+# deb.prints(im.shape)
+# h,w,chans=im.shape
+# im_flat=np.reshape(im,(h*w,chans))
+# bounding_box_flat=np.reshape(bounding_box,-1)
+# stats_print(im_flat[bounding_box_flat!=0])
+def scaler_from_im_fit(im,mask):
+	h,w,chans=im.shape
+	im=np.reshape(im,(h*w,chans))
+	mask=np.reshape(mask,-1)
+	deb.prints(im.shape)
+	# Pick source pixels
+	im_train=im[mask==1]
+	stats_print(im_train)
+	deb.prints(im.shape)
+	# Fit on train area
+	scaler=StandardScaler()
+	scaler.fit(im_train)
+
+	# Transform on whole image
+	im=scaler.transform(im)
+	im=np.reshape(im,(h,w,chans))
+	deb.prints(im.shape)
+	# 
+	return im,scaler
+
+cv2.imwrite("im1.png",im[:,:,0:3])
+cv2.imwrite("im2.png",im[:,:,3:6])
+
+im,scaler= scaler_from_im_fit(im,mask)
+stats_print(im)
+# ========= Extract patches ==========
 from  skimage.util import view_as_windows
 
 window_len=128
@@ -103,22 +146,34 @@ channel_n=6
 patches_step=int(window_len/3)
 deb.prints(patches_step)
 window_shape=(window_len,window_len,channel_n)
+
 patches={}
-patches['im']=view_as_windows_flat(im,window_shape,step=patches_step)
-patches['mask']=view_as_windows_flat(mask,(window_len,window_len),step=patches_step)
-patches['label']=view_as_windows_flat(label,(window_len,window_len),step=patches_step)
+patches['im'],_=view_as_windows_flat(im,window_shape,step=patches_step)
+patches['mask'],_=view_as_windows_flat(mask,(window_len,window_len),step=patches_step)
+patches['label'],_=view_as_windows_flat(label,(window_len,window_len),step=patches_step)
 
 deb.prints(patches['im'].shape)
 patches['target']={}
 patches['source']={}
 
-def patches_domain_gather(patches,mask,domain,axis=(1,2)):
-	return patches[np.any(mask==domain,axis=axis),::]
+def patches_from_domain_gather(patches,mask,domain,axis=(1,2)):
+	return patches[np.all(mask==domain,axis=axis),::]
 
-patches['target']['im']=patches_domain_gather(patches['im'],patches['mask'],2)
-patches['source']['im']=patches_domain_gather(patches['im'],patches['mask'],1)
+# I'm taking all sourcxe patches, but masking for normalizing
+patches['target']['im']=patches_from_domain_gather(patches['im'],patches['mask'],2)
+patches['source']['im']=patches_from_domain_gather(patches['im'],patches['mask'],1)
+
+patches['target']['mask']=patches_from_domain_gather(patches['mask'],patches['mask'],2)
+patches['source']['mask']=patches_from_domain_gather(patches['mask'],patches['mask'],1)
+
+patches['target']['label']=patches_from_domain_gather(patches['label'],patches['mask'],2)
+patches['source']['label']=patches_from_domain_gather(patches['label'],patches['mask'],1)
 
 del patches['im']
+del patches['label']
+del patches['mask']
+
+
 #patches['target']['mask']=patches_domain_gather(patches['mask'],patches['mask'],2)
 #patches['source']['im']=patches_domain_gather(patches['im'],1)
 
@@ -128,3 +183,19 @@ del patches['im']
 
 deb.prints(patches['target']['im'].shape)
 deb.prints(patches['source']['im'].shape)
+
+
+def patches_store(patches,path):
+	for idx in range(patches.shape[0]):
+		np.save(path+"patches"+str(idx)+".npy",patches[idx])
+
+patches_store(patches['source']['im'],"patches/source/im/")
+patches_store(patches['target']['im'],"patches/target/im/")
+
+patches_store(patches['source']['mask'],"patches/source/mask/")
+patches_store(patches['target']['mask'],"patches/target/mask/")
+
+patches_store(patches['source']['label'],"patches/source/label/")
+patches_store(patches['target']['label'],"patches/target/label/")
+
+joblib.dump(scaler, 'scaler.joblib') 

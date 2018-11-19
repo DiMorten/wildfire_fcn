@@ -1,5 +1,6 @@
 import os
 import cv2
+import deb
 os.environ['KERAS_BACKEND']='tensorflow' # can choose theano, tensorflow, cntk
 os.environ['THEANO_FLAGS']='floatX=float32,device=cuda,optimizer=fast_run,dnn.library_path=/usr/lib'
 #os.environ['THEANO_FLAGS']='floatX=float32,device=cuda,optimizer=fast_compile,dnn.library_path=/usr/lib'
@@ -26,6 +27,9 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import relu
 from keras.initializers import RandomNormal
 
+# ==== Choose if importing weights
+
+weight_load=False
 
 
 # Weights initializations
@@ -120,8 +124,8 @@ def UNET_G(isize, nc_in=3, nc_out=3, ngf=64, fixed_input_size=True):
 
 
 
-nc_in = 3
-nc_out = 3
+nc_in = 6
+nc_out = 6
 ngf = 64
 ndf = 64
 use_lsgan = True
@@ -210,22 +214,29 @@ def load_data(file_pattern):
     return glob.glob(file_pattern)
 
 def read_image(fn):
-    im = Image.open(fn).convert('RGB')
-    im = im.resize( (loadSize, loadSize), Image.BILINEAR )
-    arr = np.array(im)/255*2-1
-    w1,w2 = (loadSize-imageSize)//2,(loadSize+imageSize)//2
-    h1,h2 = w1,w2
-    img = arr[h1:h2, w1:w2, :]
-    if randint(0,1):
-        img=img[:,::-1]
-    if channel_first:        
-        img = np.moveaxis(img, 2, 0)
+    img = np.load(fn)
+
+    #im = Image.open(fn).convert('RGB')
+    #im = im.resize( (loadSize, loadSize), Image.BILINEAR )
+    #arr = np.array(im)/255*2-1
+    #w1,w2 = (loadSize-imageSize)//2,(loadSize+imageSize)//2
+    #h1,h2 = w1,w2
+    #img = arr[h1:h2, w1:w2, :]
+    #if randint(0,1):
+    #    img=img[:,::-1]
+    #if channel_first:        
+    #    img = np.moveaxis(img, 2, 0)
+    
     return img
 
 #data = "edges2shoes"
 data = "horse2zebra"
-train_A = load_data('data/{}/trainA/*.jpg'.format(data))
-train_B = load_data('data/{}/trainB/*.jpg'.format(data))
+path="/home/lvc/Jorg/igarss/wildfire_fcn/src/patch_extract2/patches/"
+train_A = load_data(path+"source/im/*.npy")
+train_B = load_data(path+"target/im/*.npy")
+
+deb.prints(len(train_A))
+deb.prints(len(train_B))
 
 assert len(train_A) and len(train_B)
 
@@ -271,34 +282,47 @@ def showX(X, rows=1):
 train_batch = minibatchAB(train_A, train_B, 6)
 
 _, A, B = next(train_batch)
-showX(A)
-showX(B)
+#showX(A)
+#showX(B)
 del train_batch, A, B
 
+def stats_print(x):
+    print(np.min(x),np.max(x),np.average(x),x.dtype)
+def unnormalize(im,scaler):
+    h,w,chans=im.shape
+    im=np.reshape(im,(h*w,chans))
+    im=scaler.inverse_transform(im)
+    #stats_print(im)
+    return np.reshape(im,(h,w,chans))
 
-def unnormalize(im):
-    return ( (im+1)/2*255).clip(0,255)
-def showG(A,B):
+    #return ( (im+1)/2*255).clip(0,255)
+def showG(A,B,scaler):
     print(A.shape)
     assert A.shape==B.shape
     def G(fn_generate, X):
         r = np.array([fn_generate([X[i:i+1]]) for i in range(X.shape[0])])
         return r.swapaxes(0,1)[:,:,0]        
-    rA = G(cycleA_generate, A)
+    rA = G(cycleA_generate, A) #cycleA_generate is the function
     rB = G(cycleB_generate, B)
     arr = np.concatenate([A,B,rA[0],rB[0],rA[1],rB[1]])
     print(arr.shape)
-    result_folder="results/"
-    cv2.imwrite(result_folder+"A.jpg",unnormalize(A[0]))
-    cv2.imwrite(result_folder+"B.jpg",unnormalize(B[0]))
-    cv2.imwrite(result_folder+"rA0.jpg",unnormalize(rA[0][0]))
-    cv2.imwrite(result_folder+"rB0.jpg",unnormalize(rB[0][0]))
-    cv2.imwrite(result_folder+"rA.jpg",unnormalize(rA[1][0]))
-    cv2.imwrite(result_folder+"rB.jpg",unnormalize(rB[1][0]))
-    
-    
-    showX(arr, 3)
+    #stats_print(A)
+    #stats_print(B)
+    #stats_print(rA[0])
 
+    result_folder="results/"
+    cv2.imwrite(result_folder+"A.png",unnormalize(A[0],scaler)[:,:,0:3])
+    cv2.imwrite(result_folder+"B.png",unnormalize(B[0],scaler)[:,:,0:3])
+    cv2.imwrite(result_folder+"rA0.png",unnormalize(rA[0][0],scaler)[:,:,0:3])
+    cv2.imwrite(result_folder+"rB0.png",unnormalize(rB[0][0],scaler)[:,:,0:3])
+    cv2.imwrite(result_folder+"rA.png",unnormalize(rA[1][0],scaler)[:,:,0:3])
+    cv2.imwrite(result_folder+"rB.png",unnormalize(rB[1][0],scaler)[:,:,0:3])
+    
+    
+    #showX(arr, 3)
+
+from sklearn.externals import joblib
+scaler = joblib.load('../patch_extract2/scaler.joblib') 
 
 
 import time
@@ -310,6 +334,7 @@ epoch = 0
 errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = 0
 
 display_iters = 50
+store_iters= 500
 #val_batch = minibatch(valAB, 6, direction)
 train_batch = minibatchAB(train_A, train_B, batchSize)
 
@@ -333,6 +358,8 @@ while epoch < niter:
            errGA_sum/display_iters, errGB_sum/display_iters, 
            errCyc_sum/display_iters), time.time()-t0)
         _, A, B = train_batch.send(4)
-        showG(A,B)        
         errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = 0
 
+    if gen_iterations%store_iters==0:
+        showG(A,B,scaler)        
+       
