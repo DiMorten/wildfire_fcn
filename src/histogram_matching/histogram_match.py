@@ -87,6 +87,7 @@ def hist_match(source, template):
 acre_path="../../data/AP2_Acre/L8_002-67_ROI.tif"
 acre_im=im_load(acre_path)
 #acre_avg=acre_im[:][acre_im[:]!=32767]
+acre_im[acre_im==32767]=np.average(acre_im[acre_im!=32767])
 deb.prints(np.average(acre_im))
 print(acre_im.shape)
 #acre_shape=acre_im.shape
@@ -94,6 +95,7 @@ print(acre_im.shape)
 para_path="../../data/AP1_Para/L8_224-66_ROI_clip.tif"
 para_im=im_load(para_path)
 #para_avg=para_im[:][para_im[:]!=32767]
+para_im[para_im==32767]=np.average(para_im[para_im!=32767])
 
 deb.prints(np.average(para_im))
 print(para_im.shape)

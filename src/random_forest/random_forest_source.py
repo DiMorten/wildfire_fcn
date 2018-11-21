@@ -328,7 +328,7 @@ cross_raster=False
 source_format='tiff'
 match=False
 dataset='acre'
-features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format,train_test_mask='train_test_mask_ac_target.png')
+features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format,train_test_mask='train_test_mask_ac_near.png')
 
 if cross_raster:
 	dataset='para'

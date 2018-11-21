@@ -26,6 +26,7 @@ from keras.layers import Concatenate
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import relu
 from keras.initializers import RandomNormal
+
 # ==== Choose if importing weights
 
 weight_load=True
@@ -118,9 +119,7 @@ def UNET_G(isize, nc_in=3, nc_out=3, ngf=64, fixed_input_size=True):
     else:
         _ = inputs = Input(shape=(s, s, nc_in))        
     _ = block(_, isize, nc_in, False, nf_out=nc_out, nf_next=ngf)
-    #_ = Activation('tanh')(_)
-    _ = LeakyReLU(alpha=0.2)(_)
-    #_ = Activation('linear')(_)
+    _ = Activation('tanh')(_)
     return Model(inputs=inputs, outputs=[_])
 
 
@@ -319,15 +318,14 @@ def showG(A,B,scaler):
     #stats_print(rA[0])
 
     result_folder="results/"
-    cv2.imwrite(result_folder+"A.png",unnormalize(A[0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"B.png",unnormalize(B[0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rA0.png",unnormalize(rA[0][0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rB0.png",unnormalize(rB[0][0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rA.png",unnormalize(rA[1][0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rB.png",unnormalize(rB[1][0],scaler)[:,:,0:3]/4)
+    #np.save(result_folder+"A.png",unnormalize(A[0],scaler)[:,:,0:3])
+    #np.save(result_folder+"B.png",unnormalize(B[0],scaler)[:,:,0:3])
+    #np.save(result_folder+"rA0.png",unnormalize(rA[0][0],scaler)[:,:,0:3])
+    #np.save(result_folder+"rB0.png",unnormalize(rB[0][0],scaler)[:,:,0:3])
+    #np.save(result_folder+"rA.png",unnormalize(rA[1][0],scaler)[:,:,0:3])
+    #np.save(result_folder+"rB.png",unnormalize(rB[1][0],scaler)[:,:,0:3])
     
-    np.save("show.npy",arr)
-
+    return A,B,rA,rB
     #showX(arr, 3)
 
 from sklearn.externals import joblib
@@ -347,34 +345,7 @@ store_iters= 500
 #val_batch = minibatch(valAB, 6, direction)
 train_batch = minibatchAB(train_A, train_B, batchSize)
 
-while epoch < niter: 
-    epoch, A, B = next(train_batch)        
-    errDA, errDB  = netD_train([A, B])
-    errDA_sum +=errDA
-    errDB_sum +=errDB
+epoch, A, B = next(train_batch)        
 
-    # epoch, trainA, trainB = next(train_batch)
-    errGA, errGB, errCyc = netG_train([A, B])
-    errGA, errGB, errCyc = netG_train([A, B])
-    
-    errGA_sum += errGA
-    errGB_sum += errGB
-    errCyc_sum += errCyc
-    gen_iterations+=1
-    if gen_iterations%display_iters==0:
-        #if gen_iterations%(5*display_iters)==0:
-        #clear_output()
-        print('[%d/%d][%d] Loss_D: %f %f Loss_G: %f %f loss_cyc %f'
-        % (epoch, niter, gen_iterations, errDA_sum/display_iters, errDB_sum/display_iters,
-           errGA_sum/display_iters, errGB_sum/display_iters, 
-           errCyc_sum/display_iters), time.time()-t0)
-        _, A, B = train_batch.send(4)
-        errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = 0
-
-    if gen_iterations%store_iters==0:
-        showG(A,B,scaler)
-        netDA.save_weights('netDA.h5')        
-        netDB.save_weights('netDB.h5')        
-        netGA.save_weights('netGA.h5')        
-        netGB.save_weights('netGB.h5')        
+As,Bs,rA,rB=showG(A,B,scaler)
        

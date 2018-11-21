@@ -45,6 +45,17 @@ def im_load(path,dataset):
 	im = gdal.Open(path['raster'])
 	im = np.array(im.ReadAsArray())
 	im = np.transpose(im, (1, 2, 0))
+	
+	# debug
+	# deb.prints(np.count_nonzero(im[im>30000]))
+	# im_=im[:,:,0].copy()
+	# deb.prints(np.count_nonzero(im_>30000))
+	# deb.prints(im_.shape)
+	# im_[im_<=30000]=0
+	# im_[im_>30000]=250	
+	# im_=im_.astype(np.uint8)
+
+	# cv2.imwrite("toobright.png",im_)
 	im = im.astype(np.float32)
 
 	if dataset=='para':
@@ -53,7 +64,7 @@ def im_load(path,dataset):
 		im = im[0:-1,:,:]
 	return im
 
-def mask_label_load(path,flatten=False):
+def mask_label_load(path,im,flatten=False):
 
 	deb.prints(path['train_test_mask'])
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
@@ -63,6 +74,11 @@ def mask_label_load(path,flatten=False):
 	label=label+1 # 0 is for background
 
 	bounding_box=cv2.imread(path['bounding_box'],-1).astype(np.uint8)
+	channel_n=6
+	chans=range(channel_n)
+	for chan in chans:
+		bounding_box[im[:,:,chan]==32767]=0
+
 	#mask[mask==255]=1
 	#mask=mask+1
 	mask[bounding_box==0]=0 # Background. No data
@@ -89,8 +105,9 @@ dataset='acre'
 im_path='../../data/AP2_Acre/L8_002-67_ROI.tif'
 
 path=path_configure(dataset,source='tiff',train_test_mask='train_test_mask_ac_target.png')
-mask,label,bounding_box=mask_label_load(path)
 im=im_load(path,dataset)
+mask,label,bounding_box=mask_label_load(path,im)
+
 deb.prints(im.shape)
 deb.prints(mask.shape)
 deb.prints(label.shape)
@@ -113,31 +130,71 @@ def stats_print(x):
 # im_flat=np.reshape(im,(h*w,chans))
 # bounding_box_flat=np.reshape(bounding_box,-1)
 # stats_print(im_flat[bounding_box_flat!=0])
-def scaler_from_im_fit(im,mask):
+def scaler_from_im_fit(im,mask,debug=0):
 	h,w,chans=im.shape
 	im=np.reshape(im,(h*w,chans))
 	mask=np.reshape(mask,-1)
 	deb.prints(im.shape)
 	# Pick source pixels
 	im_train=im[mask==1]
+
+	# Correct for saturated values
+	#avg=np.average(im_train)
+	#n=32767
+	#im_train[im_train==n]=np.average(im_train[im_train!=n])
 	stats_print(im_train)
+	stats_print(im_train[:,0])
+	stats_print(im_train[:,1])
+	stats_print(im_train[:,2])
+	stats_print(im_train[:,3])
+	stats_print(im_train[:,4])
+	stats_print(im_train[:,5])
+
+	if debug>=2:
+		
+		deb.prints(np.count_nonzero(im_train[im_train>30000]))
+
+		deb.prints(np.count_nonzero(im_train[im_train>32760]))
+		deb.prints(np.count_nonzero(im_train[:,0][im_train[:,0]>32760]))
+		deb.prints(np.count_nonzero(im_train[:,1][im_train[:,1]>32760]))
+		deb.prints(np.count_nonzero(im_train[:,2][im_train[:,2]>32760]))
+		deb.prints(np.count_nonzero(im_train[:,3][im_train[:,3]>32760]))
+		deb.prints(np.count_nonzero(im_train[:,4][im_train[:,4]>32760]))
+	
+
 	deb.prints(im.shape)
 	# Fit on train area
-	scaler=StandardScaler()
+	scaler=MinMaxScaler()
 	scaler.fit(im_train)
 
 	# Transform on whole image
+	im_train=scaler.transform(im_train)
 	im=scaler.transform(im)
 	im=np.reshape(im,(h,w,chans))
 	deb.prints(im.shape)
 	# 
+	stats_print(im_train)
 	return im,scaler
 
 cv2.imwrite("im1.png",im[:,:,0:3])
 cv2.imwrite("im2.png",im[:,:,3:6])
 
+#import tifffile as tiff
+
+#imsave("im.tif", im)
+
 im,scaler= scaler_from_im_fit(im,mask)
 stats_print(im)
+
+def unnormalize(im,scaler):
+    h,w,chans=im.shape
+    im=np.reshape(im,(h*w,chans))
+    im=scaler.inverse_transform(im)
+    #stats_print(im)
+    return np.reshape(im,(h,w,chans))
+
+im_rescale=unnormalize(im,scaler)
+cv2.imwrite("im_rescale.png",im_rescale[:,:,0:3])
 # ========= Extract patches ==========
 from  skimage.util import view_as_windows
 
