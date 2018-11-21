@@ -28,8 +28,8 @@ from keras.activations import relu
 from keras.initializers import RandomNormal
 # ==== Choose if importing weights
 
-weight_load=False
-weights_path="first_model/"
+weight_load=True
+weights_path="acre_to_para/"
 
 # Weights initializations
 # bias are initailized as 0
@@ -305,7 +305,7 @@ def unnormalize(im,scaler):
 
     #return ( (im+1)/2*255).clip(0,255)
 def showG(A,B,scalerA,scalerB):
-    print(A.shape)
+    deb.prints(A.shape)
     assert A.shape==B.shape
     def G(fn_generate, X):
         r = np.array([fn_generate([X[i:i+1]]) for i in range(X.shape[0])])
@@ -344,7 +344,7 @@ epoch = 0
 errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = 0
 
 display_iters = 50
-store_iters= 500
+store_iters= 20
 #val_batch = minibatch(valAB, 6, direction)
 train_batch = minibatchAB(train_A, train_B, batchSize)
 

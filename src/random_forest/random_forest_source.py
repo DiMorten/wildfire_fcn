@@ -322,13 +322,14 @@ def hist_match(source, template):
 
     return interp_t_values[bin_idx].reshape(oldshape)
 #================== DEFINE FILENAMES =======================
-load_other_model=False
+load_other_model=True
 cross_raster=False
 #source_format='matlab'
 source_format='tiff'
 match=False
 dataset='acre'
-features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format,train_test_mask='train_test_mask_ac_near.png')
+#features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format,train_test_mask='train_test_mask_ac_near.png')
+features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format)
 
 if cross_raster:
 	dataset='para'
@@ -381,7 +382,10 @@ if load_other_model==False:
 
 if load_other_model==True:
 	print("Loading other model...")
-	clf = joblib.load('results/acre/trained_classifier.joblib') 
+	#clf_path='results/acre/trained_classifier.joblib'
+	clf_path='results/para/trained_classifier.joblib'
+	clf = joblib.load(clf_path) 
+
 
 # predict
 #start_time = time.time()
