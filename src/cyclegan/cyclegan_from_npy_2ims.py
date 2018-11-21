@@ -119,7 +119,7 @@ def UNET_G(isize, nc_in=3, nc_out=3, ngf=64, fixed_input_size=True):
         _ = inputs = Input(shape=(s, s, nc_in))        
     _ = block(_, isize, nc_in, False, nf_out=nc_out, nf_next=ngf)
     #_ = Activation('tanh')(_)
-    _ = LeakyReLU(alpha=0.2)(_)
+    #_ = LeakyReLU(alpha=0.2)(_)
     #_ = Activation('linear')(_)
     return Model(inputs=inputs, outputs=[_])
 
@@ -240,8 +240,8 @@ def read_image(fn):
 #data = "edges2shoes"
 data = "horse2zebra"
 path="/home/lvc/Jorg/igarss/wildfire_fcn/src/patch_extract2/patches/"
-train_A = load_data(path+"source/im/*.npy")
-train_B = load_data(path+"target/im/*.npy")
+train_A = load_data(path+"acre/im/*.npy")
+train_B = load_data(path+"para/im/*.npy")
 
 deb.prints(len(train_A))
 deb.prints(len(train_B))
@@ -304,7 +304,7 @@ def unnormalize(im,scaler):
     return np.reshape(im,(h,w,chans))
 
     #return ( (im+1)/2*255).clip(0,255)
-def showG(A,B,scaler):
+def showG(A,B,scalerA,scalerB):
     print(A.shape)
     assert A.shape==B.shape
     def G(fn_generate, X):
@@ -319,19 +319,20 @@ def showG(A,B,scaler):
     #stats_print(rA[0])
 
     result_folder="results/"
-    cv2.imwrite(result_folder+"A.png",unnormalize(A[0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"B.png",unnormalize(B[0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rA0.png",unnormalize(rA[0][0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rB0.png",unnormalize(rB[0][0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rA.png",unnormalize(rA[1][0],scaler)[:,:,0:3]/4)
-    cv2.imwrite(result_folder+"rB.png",unnormalize(rB[1][0],scaler)[:,:,0:3]/4)
+    cv2.imwrite(result_folder+"A.png",unnormalize(A[0],scalerA)[:,:,0:3]/4)
+    cv2.imwrite(result_folder+"B.png",unnormalize(B[0],scalerB)[:,:,0:3]/4)
+    cv2.imwrite(result_folder+"rA0.png",unnormalize(rA[0][0],scalerB)[:,:,0:3]/4)
+    cv2.imwrite(result_folder+"rB0.png",unnormalize(rB[0][0],scalerA)[:,:,0:3]/4)
+    cv2.imwrite(result_folder+"rA.png",unnormalize(rA[1][0],scalerA)[:,:,0:3]/4)
+    cv2.imwrite(result_folder+"rB.png",unnormalize(rB[1][0],scalerB)[:,:,0:3]/4)
     
     np.save("show.npy",arr)
 
     #showX(arr, 3)
 
 from sklearn.externals import joblib
-scaler = joblib.load('../patch_extract2/scaler.joblib') 
+scalerA = joblib.load('../patch_extract2/scaler_acre.joblib') 
+scalerB = joblib.load('../patch_extract2/scaler_para.joblib') 
 
 
 import time
@@ -372,7 +373,7 @@ while epoch < niter:
         errCyc_sum = errGA_sum = errGB_sum = errDA_sum = errDB_sum = 0
 
     if gen_iterations%store_iters==0:
-        showG(A,B,scaler)
+        showG(A,B,scalerA,scalerB)
         netDA.save_weights('netDA.h5')        
         netDB.save_weights('netDB.h5')        
         netGA.save_weights('netGA.h5')        
