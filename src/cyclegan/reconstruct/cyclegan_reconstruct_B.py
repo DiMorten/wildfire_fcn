@@ -3,6 +3,8 @@ import cv2
 import deb
 from osgeo import gdal
 import numpy as np
+from sklearn.externals import joblib
+
 os.environ['KERAS_BACKEND']='tensorflow' # can choose theano, tensorflow, cntk
 os.environ['THEANO_FLAGS']='floatX=float32,device=cuda,optimizer=fast_run,dnn.library_path=/usr/lib'
 #os.environ['THEANO_FLAGS']='floatX=float32,device=cuda,optimizer=fast_compile,dnn.library_path=/usr/lib'
@@ -237,6 +239,8 @@ def im_load(path,dataset,source='tiff'):
 
     
     return im
+def stats_print(x):
+    print(np.min(x),np.max(x),np.average(x),x.dtype)
 
 def im_reconstruct(img,cycleB_generate,window,overlap):
     out=np.zeros_like(img)
@@ -254,6 +258,17 @@ def im_reconstruct(img,cycleB_generate,window,overlap):
         
     counter=0
     
+    # Load scalers
+    scalerA = joblib.load('../../patch_extract2/scaler_acre.joblib') 
+    scalerB = joblib.load('../../patch_extract2/scaler_para.joblib') 
+
+    deb.prints(im.shape)
+    stats_print(im[:,:,0:3])
+    cv2.imwrite("in.png",img[:,:,0:3]/4)
+    # Normalize img which is B
+    img = img.reshape(h*w,-1)
+    img = scalerB.transform(img)
+    img = img.reshape(h,w,channels)
     #======================== START IMG LOOP ==================================#
     for i in range(len(gridx)):
         for j in range(len(gridy)):
@@ -265,8 +280,18 @@ def im_reconstruct(img,cycleB_generate,window,overlap):
             #patch_clouds=Bclouds[yy: yy + window, xx: xx + window]
             B = img[yy: yy + window, xx: xx + window,:].copy()
             A = G(cycleB_generate,np.expand_dims(B,axis=0))
-            out[yy: yy + window, xx: xx + window,:]=A[0].copy()
+            A_ = A[0][0]
+            # Unnormalize
+
+            A_ = np.reshape(A_,(window*window,-1))
+            A_ = scalerA.inverse_transform(A_)
+            A_ = np.reshape(A_,(window,window,channels))
+
+            out[yy: yy + window, xx: xx + window,:]=A_.copy()
+    stats_print(out[:,:,0:3])
     np.save("out.npy",out)
+    cv2.imwrite("out.png",out[:,:,0:3]/4)
+
 dataset='para'
 path=path_configure(dataset)
 im=im_load(path,dataset)

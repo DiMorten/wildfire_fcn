@@ -328,8 +328,15 @@ cross_raster=False
 source_format='tiff'
 match=False
 dataset='acre'
+
+reconstructed=False
 #features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format,train_test_mask='train_test_mask_ac_near.png')
-features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format)
+if reconstructed==True:
+	im=np.load("/home/lvc/Jorg/igarss/wildfire_fcn/src/cyclegan/reconstruct/out.npy")
+	im = im.reshape(im.shape[0]*im.shape[1],-1)
+	features_train, label_train, features_test, label_test=dataset_load_from_im(dataset,im)
+else:	
+	features_train, label_train, features_test, label_test,acre_im=dataset_load(dataset, source=source_format)
 
 if cross_raster:
 	dataset='para'
@@ -382,8 +389,10 @@ if load_other_model==False:
 
 if load_other_model==True:
 	print("Loading other model...")
+	clf_path='trained_clasifier.joblib'
+	
 	#clf_path='results/acre/trained_classifier.joblib'
-	clf_path='results/para/trained_classifier.joblib'
+	#clf_path='results/para/trained_classifier.joblib'
 	clf = joblib.load(clf_path) 
 
 
