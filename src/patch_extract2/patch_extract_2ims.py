@@ -101,7 +101,7 @@ def view_as_windows_flat(im,window_shape,step=1):
 
 one_image=False
 # Load first image
-dataset='acre'
+dataset='para'
 
 #im_path='../../data/AP2_Acre/L8_002-67_ROI.tif'
 
@@ -118,7 +118,8 @@ label=label.astype(np.uint8)
 bounding_box=bounding_box.astype(np.uint8)
 im=im.astype(np.float32)
 
-
+channel_n=im.shape[2]
+deb.prints(channel_n)
 # ======== Normalize ==============
 
 
@@ -190,6 +191,7 @@ else:
 	im,scaler= scaler_from_im_fit(im,bounding_box)
 stats_print(im)
 
+
 def unnormalize(im,scaler):
     h,w,chans=im.shape
     im=np.reshape(im,(h*w,chans))
@@ -199,6 +201,46 @@ def unnormalize(im,scaler):
 
 im_rescale=unnormalize(im,scaler)
 cv2.imwrite("im_rescale.png",im_rescale[:,:,0:3])
+# ========= Mask ===============
+
+def im_apply_mask(im,mask,channel_n):
+	im_train=im.copy()
+	im_test=im.copy()
+	
+	for band in range(0,channel_n):
+		im_train[:,:,band][mask!=1]=-2
+		im_test[:,:,band][mask!=2]=-2
+	deb.prints(im_train.shape)
+	return im_train,im_test
+def label_apply_mask(im,mask): 
+	im=im.astype(np.uint8) 
+	im_train=im.copy() 
+	im_test=im.copy() 
+	 
+	mask_train=mask.copy() 
+	mask_train[mask==2]=0 
+	mask_test=mask.copy() 
+	mask_test[mask==1]=0 
+	mask_test[mask==2]=1 
+ 
+	deb.prints(im.shape) 
+	deb.prints(mask_train.shape) 
+ 
+	deb.prints(im.dtype) 
+	deb.prints(mask_train.dtype) 
+	 
+	im_train=cv2.bitwise_and(im,im,mask=mask_train) 
+	im_test=cv2.bitwise_and(im,im,mask=mask_test) 
+ 
+ 
+	#im_train[t_step,:,:,band][mask!=1]=-1 
+	#im_test[t_step,:,:,band][mask!=2]=-1 
+	deb.prints(im_train.shape) 
+	return im_train,im_test 
+
+im_train, im_test = im_apply_mask(im,mask,channel_n)
+label_train, label_test = label_apply_mask(label,mask)
+
 # ========= Extract patches ==========
 from  skimage.util import view_as_windows
 
@@ -210,12 +252,29 @@ patches_step=int(window_len/1.2)
 deb.prints(patches_step)
 window_shape=(window_len,window_len,channel_n)
 
-patches={}
-patches['im'],_=view_as_windows_flat(im,window_shape,step=patches_step)
-patches['mask'],_=view_as_windows_flat(mask,(window_len,window_len),step=patches_step)
-patches['label'],_=view_as_windows_flat(label,(window_len,window_len),step=patches_step)
-patches['bounding_box'],_=view_as_windows_flat(bounding_box,(window_len,window_len),step=patches_step)
 
+
+patches={'train':{},'test':{}}
+
+patches['train']['im'],_=view_as_windows_flat(im_train,window_shape,step=patches_step)
+#patches['mask'],_=view_as_windows_flat(mask,(window_len,window_len),step=patches_step)
+patches['train']['label'],_=view_as_windows_flat(label_train,(window_len,window_len),step=patches_step)
+#patches['bounding_box'],_=view_as_windows_flat(bounding_box,(window_len,window_len),step=patches_step)
+
+patches['test']['im'],_=view_as_windows_flat(im_test,window_shape,step=patches_step)
+patches['test']['label'],_=view_as_windows_flat(label_test,(window_len,window_len),step=patches_step)
+
+
+folder="compact/"+dataset+"/"
+np.save(folder+"train_im.npy",patches['train']['im'])
+np.save(folder+"train_label.npy",patches['train']['label'])
+np.save(folder+"test_im.npy",patches['test']['im'])
+np.save(folder+"test_label.npy",patches['test']['label'])
+
+joblib.dump(scaler, 'scaler_'+dataset+'.joblib') 
+assert 1==2
+
+# ============ END OF SCRIPT ======================= #
 
 def patches_store(patches,path):
 		for idx in range(patches.shape[0]):
@@ -273,5 +332,3 @@ else:
 	patches_store(patches['mask'],"patches/"+dataset+"/mask/")
 
 	patches_store(patches['label'],"patches/"+dataset+"/label/")
-
-joblib.dump(scaler, 'scaler_'+dataset+'.joblib') 
