@@ -14,8 +14,17 @@ import sklearn.preprocessing as pp
 from osgeo import gdal
 import deb
 from sklearn.externals import joblib
+import argparse
 
+ap = argparse.ArgumentParser()
+ap.add_argument('-w', '--window_len', default=32,help="Path to weights file to load source model for training classification/adaptation")
+ap.add_argument('-s', '--step', default=32,help="Path to weights file to load source model for training classification/adaptation")
+ap.add_argument('-wpx', '--wildfire_min_pixel_percentage', default=-1, \
+	help="Extract patches which have the wildfire class on them only. Use 'any' for at least 1px")
+ap.add_argument('-at', '--all_train', default=False,help="Modify train/Test mask so that almost everything is used for training")
+ap.add_argument('-ds', '--dataset', default="para",help="Modify train/Test mask so that almost everything is used for training")
 
+a = ap.parse_args()
 
 def path_configure(dataset,source='tiff',train_test_mask='TrainTestMask.png'):
 
@@ -64,7 +73,7 @@ def im_load(path,dataset):
 		im = im[0:-1,:,:]
 	return im
 
-def mask_label_load(path,im,flatten=False):
+def mask_label_load(path,im,flatten=False,all_train=False):
 
 	deb.prints(path['train_test_mask'])
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
@@ -81,6 +90,10 @@ def mask_label_load(path,im,flatten=False):
 
 	#mask[mask==255]=1
 	#mask=mask+1
+
+	if all_train==True:
+		mask.fill(1)
+
 	mask[bounding_box==0]=0 # Background. No data
 	label[bounding_box==0]=0 # Background. No data
 	if flatten==True:
@@ -101,7 +114,7 @@ def view_as_windows_flat(im,window_shape,step=1):
 
 one_image=False
 # Load first image
-dataset='para'
+dataset=a.dataset
 
 #im_path='../../data/AP2_Acre/L8_002-67_ROI.tif'
 
@@ -244,34 +257,50 @@ data['train']['label'], data['test']['label'] = label_apply_mask(label,mask)
 data['train']['mask'], data['test']['mask'] = label_apply_mask(label,mask)
 
 # ========= Extract patches ==========
-def patches_from_domain_gather(patches,mask,domain,axis=(1,2),min_pixel_percentage=0.5):
-		if min_pixel_percentage=="all":
+def patches_from_domain_gather(patches,mask,domain,axis=(1,2),mask_min_pixel_percentage=0.5):
+		if mask_min_pixel_percentage=="any":
 			return patches[np.any(mask==domain,axis=axis),::]
 		else:
-			pixel_limit=int(patches.shape[1]*patches.shape[2]*min_pixel_percentage)
+			pixel_limit=int(patches.shape[1]*patches.shape[2]*mask_min_pixel_percentage)
 			return patches[np.count_nonzero(mask==domain,axis=axis)>pixel_limit,::]
-def patches_from_subset(subset,data,window_shape,patches_step,min_pixel_percentage):
+def patches_from_subset(subset,data,window_shape,patches_step, \
+	mask_min_pixel_percentage, wildfire_min_pixel_percentage=-1):
 	subset['im'],_=view_as_windows_flat(data['im'],window_shape,step=patches_step)
 	subset['mask'],_=view_as_windows_flat(data['mask'],(window_len,window_len),step=patches_step)
 	subset['label'],_=view_as_windows_flat(data['label'],(window_len,window_len),step=patches_step)
-	subset['im']=patches_from_domain_gather(subset['im'],subset['mask'],1,min_pixel_percentage=min_pixel_percentage)
-	subset['label']=patches_from_domain_gather(subset['label'],subset['mask'],1,min_pixel_percentage=min_pixel_percentage)
+	
+	subset['im']=patches_from_domain_gather(subset['im'],subset['mask'], \
+		1,mask_min_pixel_percentage=mask_min_pixel_percentage)
+	subset['label']=patches_from_domain_gather(subset['label'],subset['mask'], \
+		1,mask_min_pixel_percentage=mask_min_pixel_percentage)
+	if wildfire_min_pixel_percentage>0:
+		subset['im']=patches_from_domain_gather(subset['im'], \
+			subset['mask'],1,mask_min_pixel_percentage=wildfire_min_pixel_percentage)
+		subset['label']=patches_from_domain_gather(subset['label'], \
+			subset['mask'],1,mask_min_pixel_percentage=wildfire_min_pixel_percentage)
 	return subset
 
 
 from  skimage.util import view_as_windows
 
-window_len=32
+window_len=a.window_len
 channel_n=6
 #patches_step=int(window_len/3)
-patches_step=int(window_len)
-
+#patches_step=int(window_len)
+patches_step=a.step
 deb.prints(patches_step)
 window_shape=(window_len,window_len,channel_n)
 
+deb.prints(np.unique(data['train']['label'],return_counts=True))
+deb.prints(np.unique(data['test']['label'],return_counts=True))
+
 patches={'train':{},'test':{}}
-patches['train']=patches_from_subset(patches['train'],data['train'],window_shape,patches_step,min_pixel_percentage=0.5)
-patches['test']=patches_from_subset(patches['test'],data['test'],window_shape,patches_step,min_pixel_percentage="all")
+patches['train']=patches_from_subset(patches['train'],data['train'], \
+	window_shape,patches_step,mask_min_pixel_percentage=0.5, \
+	wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage)
+patches['test']=patches_from_subset(patches['test'],data['test'], \
+	window_shape,patches_step,mask_min_pixel_percentage="any", \
+	wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage)
 
 
 deb.prints(patches['train']['im'].shape)
