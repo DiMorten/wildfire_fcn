@@ -237,33 +237,46 @@ def label_apply_mask(im,mask):
 	#im_test[t_step,:,:,band][mask!=2]=-1 
 	deb.prints(im_train.shape) 
 	return im_train,im_test 
-
-im_train, im_test = im_apply_mask(im,mask,channel_n)
-label_train, label_test = label_apply_mask(label,mask)
+data={'train':{},'test':{}}
+# These images and labels are already isolated between train and test areass
+data['train']['im'], data['test']['im'] = im_apply_mask(im,mask,channel_n)
+data['train']['label'], data['test']['label'] = label_apply_mask(label,mask)
+data['train']['mask'], data['test']['mask'] = label_apply_mask(label,mask)
 
 # ========= Extract patches ==========
+def patches_from_domain_gather(patches,mask,domain,axis=(1,2),min_pixel_percentage=0.5):
+		some_pixels=True
+		if some_pixels==False:
+			return patches[np.any(mask==domain,axis=axis),::]
+		else:
+			pixel_limit=int(patches.shape[1]*patches.shape[2]*min_pixel_percentage)
+			return patches[np.count_nonzero(mask==domain,axis=axis)>pixel_limit,::]
+def patches_from_subset(subset,data,window_shape,patches_step):
+	subset['im'],_=view_as_windows_flat(data['im'],window_shape,step=patches_step)
+	subset['mask'],_=view_as_windows_flat(data['mask'],(window_len,window_len),step=patches_step)
+	subset['label'],_=view_as_windows_flat(data['label'],(window_len,window_len),step=patches_step)
+	subset['im']=patches_from_domain_gather(subset['im'],subset['mask'],1)
+	subset['label']=patches_from_domain_gather(subset['label'],subset['mask'],1)
+	return subset
+
+
 from  skimage.util import view_as_windows
 
-window_len=128
+window_len=32
 channel_n=6
 #patches_step=int(window_len/3)
-patches_step=int(window_len/1.2)
+patches_step=int(window_len)
 
 deb.prints(patches_step)
 window_shape=(window_len,window_len,channel_n)
 
-
-
 patches={'train':{},'test':{}}
+patches['train']=patches_from_subset(patches['train'],data['train'],window_shape,patches_step)
+patches['test']=patches_from_subset(patches['test'],data['test'],window_shape,patches_step)
 
-patches['train']['im'],_=view_as_windows_flat(im_train,window_shape,step=patches_step)
-#patches['mask'],_=view_as_windows_flat(mask,(window_len,window_len),step=patches_step)
-patches['train']['label'],_=view_as_windows_flat(label_train,(window_len,window_len),step=patches_step)
-#patches['bounding_box'],_=view_as_windows_flat(bounding_box,(window_len,window_len),step=patches_step)
 
-patches['test']['im'],_=view_as_windows_flat(im_test,window_shape,step=patches_step)
-patches['test']['label'],_=view_as_windows_flat(label_test,(window_len,window_len),step=patches_step)
-
+deb.prints(patches['train']['im'].shape)
+deb.prints(patches['test']['im'].shape)
 
 folder="compact/"+dataset+"/"
 np.save(folder+"train_im.npy",patches['train']['im'])
@@ -279,8 +292,7 @@ assert 1==2
 def patches_store(patches,path):
 		for idx in range(patches.shape[0]):
 			np.save(path+"patches"+str(idx)+".npy",patches[idx])
-def patches_from_domain_gather(patches,mask,domain,axis=(1,2)):
-		return patches[np.all(mask==domain,axis=axis),::]
+
 deb.prints(patches['im'].shape)
 if one_image==True:
 	patches['target']={}
