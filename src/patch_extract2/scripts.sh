@@ -32,8 +32,8 @@ python adda.py -sds=$target -ting=1 -ws=0
 
 # Example2
 
-source="acre"
-target="para"
+source="acre";
+target="para";
 
 python patch_extract_2ims.py -ds=$source -wpx="any" -at=True -tras=16
 

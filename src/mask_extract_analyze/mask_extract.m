@@ -57,6 +57,13 @@ elseif strcmp(dataset,'acre')
     mask(1967:2890,2993:3621)=1;
     %mask(2403:2963,481:749)=1;
     mask(2824:3082,1000:1294)=1;
+    mask(2781,1)=1;
+    
+    % Val
+    
+    mask(1977:2229,3405:3617)=3;
+    mask(3088:3311,2499:2624)=3;
+    mask(984:1247,250:393)=3;
 end
 figure(2);
 subplot(1,2,2)
@@ -71,7 +78,7 @@ sum(reference_masked==1)
 imshow(mask,[])
 mask_evaluate2(label,mask)
 
-% imwrite(uint8(mask),'train_test_mask_ac_target.png')
+imwrite(uint8(mask),'train_test_mask_ac_target.png')
 %%
 %mask_evaluate(im,label,mask)
 
@@ -92,6 +99,8 @@ function mask_evaluate2( label, mask )
     fprintf('Percentage from entire image:%f, %f\n',count_train(1)/count(1),count_train(2)/count(2))
     [values,count_test]=label_stats_print(label_test,'test');
     fprintf('Percentage from entire image:%f, %f\n',count_test(1)/count(1),count_test(2)/count(2))
+    [values,count_val]=label_stats_print(label_val,'val');
+    fprintf('Percentage from train set:%f, %f\n',count_val(1)/count_train(1),count_val(2)/count_train(2))
 
     %label_stats_print(label_train,'train');
     

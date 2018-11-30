@@ -322,7 +322,7 @@ def hist_match(source, template):
 
     return interp_t_values[bin_idx].reshape(oldshape)
 #================== DEFINE FILENAMES =======================
-load_other_model=True
+load_other_model=False
 cross_raster=False
 #source_format='matlab'
 source_format='tiff'

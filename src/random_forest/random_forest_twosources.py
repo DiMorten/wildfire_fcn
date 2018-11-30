@@ -230,7 +230,7 @@ def dataset_load(dataset,source='tiff'):
 	return features_train, label_train, features_test, label_test
 
 #================== DEFINE FILENAMES =======================
-load_other_model=True
+load_other_model=False
 source_format='tiff'
 dataset='para'
 features_train_source, label_train_source, _, _=dataset_load(dataset, source=source_format)
