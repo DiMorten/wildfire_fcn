@@ -21,7 +21,6 @@ ap = argparse.ArgumentParser()
 ap.add_argument('-w', '--window_len', default=32,help="Path to weights file to load source model for training classification/adaptation")
 ap.add_argument('-tras', '--train_step', default=32,help="Path to weights file to load source model for training classification/adaptation")
 ap.add_argument('-tess', '--test_step', default=32,help="Path to weights file to load source model for training classification/adaptation")
-#ap.add_argument('-vals', '--validation_step', default=32,help="Path to weights file to load source model for training classification/adaptation")
 
 ap.add_argument('-wpx', '--wildfire_min_pixel_percentage', default=-1, \
 	help="Extract patches which have the wildfire class on them only. Use 'any' for at least 1px")
@@ -29,16 +28,12 @@ ap.add_argument('-at', '--all_train', default=False,help="Modify train/Test mask
 ap.add_argument('-ds', '--dataset', default="para",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-of', '--output_folder', default="patches/",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is to be applied with pre-trained scaler")
-ap.add_argument('-val', '--validating', type=bool,default=False,help="If normalization is to be applied with pre-trained scaler")
+ap.add_argument('-val', '--validating', type=int,default=0,help="If normalization is to be applied with pre-trained scaler")
 
 a = ap.parse_args()
 
-
 if a.all_train=="True":
 	a.all_train=True
-if a.validating=="True":
-	a.validating=True
-
 pathlib.Path(a.output_folder).mkdir(parents=True, exist_ok=True)
 
 def stats_print(x):
@@ -243,22 +238,17 @@ im_rescale=unnormalize(im,scaler)
 cv2.imwrite("im_rescale.png",im_rescale[:,:,0:3])
 # ========= Mask ===============
 
-def im_apply_mask(im,mask,channel_n,validating=None):
+def im_apply_mask(im,mask,channel_n):
 	im_train=im.copy()
 	im_test=im.copy()
-	if validating:
-		im_val=im.copy()
+	im_val=im.copy()
 	for band in range(0,channel_n):
 		im_train[:,:,band][mask!=1]=-2
 		im_test[:,:,band][mask!=2]=-2
-		if validating:
-			im_val[:,:,band][mask!=3]=-2
+		im_val[:,:,band][mask!=2]=-2
 		
 	deb.prints(im_train.shape)
-	if validating:
-		return im_train,im_test,im_val
-	else:
-		return im_train,im_test,None
+	return im_train,im_test,im_val
 def label_apply_mask(im,mask,validating=None): 
 	im=im.astype(np.uint8) 
 	im_train=im.copy() 
@@ -280,7 +270,7 @@ def label_apply_mask(im,mask,validating=None):
 	im_test=cv2.bitwise_and(im,im,mask=mask_test) 
  
 	if validating:
-		mask_val=mask.copy()
+
 		mask_val[mask!=3]=0
 		mask_val[mask==3]=1
 		im_val=im.copy() 
@@ -292,38 +282,16 @@ def label_apply_mask(im,mask,validating=None):
 	if validating:
 		return im_train,im_test,im_val 
 	else:
-		return im_train,im_test,None
-#def mask_apply_mask(mask):
-
-data={'train':{},'test':{},'val':{}}
+		return im_train,im_test,_
+data={'train':{},'test':{}}
 # These images and labels are already isolated between train and test areass
 
-data['train']['im'], data['test']['im'], data['val']['im'] = im_apply_mask(im,mask,channel_n,validating=a.validating)
-data['train']['label'], data['test']['label'], data['val']['label'] = label_apply_mask(label,mask,validating=a.validating)
+data['train']['im'], data['test']['im'],_ = im_apply_mask(im,mask,channel_n)
+data['train']['label'], data['test']['label'] = label_apply_mask(label,mask)
+data['train']['mask'], data['test']['mask'] = label_apply_mask(label,mask)
 
-data['train']['mask']=mask.copy()
-data['test']['mask']=mask.copy()
-if a.validating==True:
-	data['val']['mask']=mask.copy()
-'''
-def mask_from_subset(mask,subset_id):
-	out=mask.copy()
-	out[out!=subset_id]=0
-	out[out==subset_id]=1
-	return out
-
-data['train']['mask']=mask_from_subset(mask,1)
-data['test']['mask']=mask_from_subset(mask,2)
-data['val']['mask']=mask_from_subset(mask,3)
-
-'''
-
-#data['train']['mask'], data['test']['mask'] = label_apply_mask(label,mask)
-deb.prints(np.unique(mask,return_counts=True))
-#deb.prints(np.all(data['train']['label']==data['train']['mask']))
-#deb.prints(np.all(data['test']['label']==data['test']['mask']))
 # ========= Extract patches ==========
-def patches_from_domain_gather(patches,mask,domain,axis=(1,2),mask_min_pixel_percentage=0.2):
+def patches_from_domain_gather(patches,mask,domain,axis=(1,2),mask_min_pixel_percentage=0.5):
 		if mask_min_pixel_percentage=="any":
 			return patches[np.any(mask==domain,axis=axis),::]
 		else:
@@ -331,18 +299,16 @@ def patches_from_domain_gather(patches,mask,domain,axis=(1,2),mask_min_pixel_per
 			print("Max pixel {}, pixel limit {}".format(patches.shape[1]*patches.shape[2],pixel_limit))
 			return patches[np.count_nonzero(mask==domain,axis=axis)>pixel_limit,::]
 def patches_from_subset(subset,data,window_shape,patches_step, \
-	mask_min_pixel_percentage, wildfire_min_pixel_percentage=-1,
-	mask_value=1):
-	print("Starting patch extraction...")
+	mask_min_pixel_percentage, wildfire_min_pixel_percentage=-1):
 	subset['im'],_=view_as_windows_flat(data['im'],window_shape,step=(patches_step,patches_step,data['im'].shape[2]))
 	subset['mask'],_=view_as_windows_flat(data['mask'],(window_len,window_len),step=(patches_step,patches_step))
 	subset['label'],_=view_as_windows_flat(data['label'],(window_len,window_len),step=(patches_step,patches_step))
-	deb.prints(subset['im'].shape)
+	
 	subset['im']=patches_from_domain_gather(subset['im'],subset['mask'], \
-		mask_value,mask_min_pixel_percentage=mask_min_pixel_percentage)
+		1,mask_min_pixel_percentage=mask_min_pixel_percentage)
 	subset['label']=patches_from_domain_gather(subset['label'],subset['mask'], \
-		mask_value,mask_min_pixel_percentage=mask_min_pixel_percentage)
-	deb.prints(subset['im'].shape)
+		1,mask_min_pixel_percentage=mask_min_pixel_percentage)
+	
 
 	condition = (wildfire_min_pixel_percentage=="any") if \
 		isinstance(wildfire_min_pixel_percentage,str) else \
@@ -354,7 +320,6 @@ def patches_from_subset(subset,data,window_shape,patches_step, \
 			subset['label'],2,mask_min_pixel_percentage=wildfire_min_pixel_percentage)
 		subset['label']=patches_from_domain_gather(subset['label'], \
 			subset['label'],2,mask_min_pixel_percentage=wildfire_min_pixel_percentage)
-	deb.prints(subset['im'].shape)
 	return subset
 
 
@@ -375,23 +340,15 @@ deb.prints(np.unique(data['test']['label'],return_counts=True))
 
 patches={'train':{},'test':{},'val':{}}
 patches['train']=patches_from_subset(patches['train'],data['train'], \
-	window_shape,int(a.train_step),mask_min_pixel_percentage=0.1, \
-	wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage,
-	mask_value=1)
+	window_shape,int(a.train_step),mask_min_pixel_percentage=0.5, \
+	wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage)
 patches['test']=patches_from_subset(patches['test'],data['test'], \
-	window_shape,int(a.test_step),mask_min_pixel_percentage="any",
-	mask_value=2) #\
+	window_shape,int(a.test_step),mask_min_pixel_percentage="any") #\
 	#wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage)
-if a.validating==True:
-	patches['val']=patches_from_subset(patches['val'],data['val'], \
-		window_shape,int(a.train_step),mask_min_pixel_percentage="any",
-		mask_value=3)
+
 
 deb.prints(patches['train']['im'].shape)
 deb.prints(patches['test']['im'].shape)
-if a.validating==True:
-	deb.prints(patches['val']['im'].shape)
-
 
 folder="compact/"+dataset+"/"
 np.save(folder+"train_im.npy",patches['train']['im'])
