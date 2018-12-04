@@ -30,6 +30,8 @@ ap.add_argument('-ds', '--dataset', default="para",help="Modify train/Test mask 
 ap.add_argument('-of', '--output_folder', default="patches/",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is to be applied with pre-trained scaler")
 ap.add_argument('-val', '--validating', type=bool,default=None,help="If normalization is to be applied with pre-trained scaler")
+ap.add_argument('-sfem', '--scale_from_entire_im', 
+	type=bool,default=True,help="Apply scaler to entire image. If false, use training areas")
 
 a = ap.parse_args()
 
@@ -104,6 +106,8 @@ def mask_label_load(path,im,flatten=False,all_train=False):
 	chans=range(channel_n)
 	for chan in chans:
 		bounding_box[im[:,:,chan]==32767]=0
+		bounding_box[im[:,:,chan]<-10000]=0
+
 
 	#mask[mask==255]=1
 	#mask=mask+1
@@ -163,14 +167,17 @@ from sklearn.preprocessing import MinMaxScaler
 # im_flat=np.reshape(im,(h*w,chans))
 # bounding_box_flat=np.reshape(bounding_box,-1)
 # stats_print(im_flat[bounding_box_flat!=0])
-def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,debug=0):
+def scaler_from_im_fit(im,mask,dump_name="default",
+	scaler_path=None,debug=0,from_entire_im=False):
 	h,w,chans=im.shape
 	im=np.reshape(im,(h*w,chans))
 	mask=np.reshape(mask,-1)
 	deb.prints(im.shape)
 	# Pick source pixels
-	im_train=im[mask==1]
-
+	if from_entire_im==False:
+		im_train=im[mask==1]
+	else:
+		im_train=im.copy()
 	# Correct for saturated values
 	#avg=np.average(im_train)
 	#n=32767
@@ -230,7 +237,8 @@ else:
 
 im,scaler= scaler_from_im_fit(im,fit_mask,
 	dump_name=a.output_folder+a.dataset,
-	scaler_path=a.scaler_path)
+	scaler_path=a.scaler_path,
+	from_entire_im=a.scale_from_entire_im)
 
 stats_print(im)
 
@@ -409,6 +417,13 @@ if a.validating==True:
 	np.save(folder+"val_label.npy",patches['val']['label'])
 
 joblib.dump(scaler, 'scaler_'+dataset+'.joblib') 
+
+stats_print(patches['train']['im'])
+try:
+	stats_print(patches['test']['im'])
+except:
+	print("Test set is empty")
+
 assert 1==2
 
 # ============ END OF SCRIPT ======================= #
