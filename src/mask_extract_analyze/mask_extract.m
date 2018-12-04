@@ -4,8 +4,8 @@ clear all
 % input: folder, im_name, label_name, dataset
 
 
-dataset='acre';
-%dataset='para';
+%dataset='acre';
+dataset='para';
 
 mask_name='TrainTestMask.png';
 if strcmp(dataset,'acre')
@@ -28,7 +28,7 @@ label=imread(strcat(folder,label_name));
 label(label==2)=1;
 figure();imshow(uint16(im(:,:,1:3))*50,[])
 figure();
-subplot(1,2,1)
+ha(1)=subplot(1,2,1);
 imshow(label,[])
 %%
 % mask=imread(strcat(folder,mask_name));
@@ -45,11 +45,27 @@ imshow(label,[])
 
 %%
 if strcmp(dataset,'para')
-    mask=zeros(size(label));
-    mask(2500:3518,1810:3621)=1;
-    %mask=1-mask;
-    mask(1:1200,1:1810)=2;
 
+    mode=2
+    if mode==1
+        mask=zeros(size(label));
+        mask(2500:3518,1810:3621)=1;
+        %mask=1-mask;
+        mask(1:1200,1:1810)=2;
+    elseif mode==2
+        mask=ones(size(label))*2;
+        mask(1417:1765,700:1281)=1;
+        mask(3347:4705,1:699)=1;
+        mask(3330:3838,1720:2157)=1;
+        mask(2266:2525,1755:1960)=1;
+        
+        mask(3792:3955,379:497)=3;
+        mask(3382:3449,1918:2037)=3;
+        mask(4250:4504,531:699)=3;
+        mask(1417:1539,1100:1162)=3;
+        
+        %mask(2266:2268,1755:1756)=3;
+    end
 elseif strcmp(dataset,'acre')
     mask=ones(size(label))*2;%test
     mask(2933:3362,2301:2877)=1;
@@ -66,10 +82,12 @@ elseif strcmp(dataset,'acre')
     mask(984:1247,250:393)=3;
 end
 figure(2);
-subplot(1,2,2)
+ha(2)=subplot(1,2,2);
  
 imshow(mask*100,[])
 %imshow(mask,[])
+
+linkaxes(ha, 'xy');
 
 reference_masked=label(mask==1);
 sum(reference_masked==0)
@@ -78,7 +96,7 @@ sum(reference_masked==1)
 imshow(mask,[])
 mask_evaluate2(label,mask)
 
-imwrite(uint8(mask),'train_test_mask_ac_target.png')
+imwrite(uint8(mask),strcat('TrainTestMask_',dataset,'.png'));
 %%
 %mask_evaluate(im,label,mask)
 

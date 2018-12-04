@@ -9,13 +9,13 @@ import glob
 import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix,f1_score,accuracy_score,classification_report
-from sklearn.externals import joblib
+
 import sklearn.preprocessing as pp
 from osgeo import gdal
 import deb
 from sklearn.externals import joblib
 import argparse
-from joblib import dump, load
+#from joblib import dump, load
 import pathlib
 ap = argparse.ArgumentParser()
 ap.add_argument('-w', '--window_len', default=32,help="Path to weights file to load source model for training classification/adaptation")
@@ -29,7 +29,7 @@ ap.add_argument('-at', '--all_train', default=False,help="Modify train/Test mask
 ap.add_argument('-ds', '--dataset', default="para",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-of', '--output_folder', default="patches/",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is to be applied with pre-trained scaler")
-ap.add_argument('-val', '--validating', type=bool,default=False,help="If normalization is to be applied with pre-trained scaler")
+ap.add_argument('-val', '--validating', type=bool,default=None,help="If normalization is to be applied with pre-trained scaler")
 
 a = ap.parse_args()
 
@@ -197,13 +197,16 @@ def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,debug=0):
 
 	deb.prints(im.shape)
 	# Fit on train area
+	deb.prints(scaler_path)
 	if scaler_path==None:
+		print("Fitting scaler...")
 		scaler=MinMaxScaler()
 		scaler.fit(im_train)
 
-		dump(scaler, dump_name+'.joblib')
+		joblib.dump(scaler, dump_name+'.joblib')
 	else:
-		scaler=load(dump_name+'.joblib')
+		print("Loading scaler. Scaler path:",scaler_path)
+		scaler=joblib.load(scaler_path+'.joblib')
 	# Transform on whole image
 	im_train=scaler.transform(im_train)
 	im=scaler.transform(im)
@@ -297,6 +300,9 @@ def label_apply_mask(im,mask,validating=None):
 
 data={'train':{},'test':{},'val':{}}
 # These images and labels are already isolated between train and test areass
+
+if not a.validating:
+	mask[mask==3]=1
 
 data['train']['im'], data['test']['im'], data['val']['im'] = im_apply_mask(im,mask,channel_n,validating=a.validating)
 data['train']['label'], data['test']['label'], data['val']['label'] = label_apply_mask(label,mask,validating=a.validating)
@@ -398,6 +404,9 @@ np.save(folder+"train_im.npy",patches['train']['im'])
 np.save(folder+"train_label.npy",patches['train']['label'])
 np.save(folder+"test_im.npy",patches['test']['im'])
 np.save(folder+"test_label.npy",patches['test']['label'])
+if a.validating==True:
+	np.save(folder+"val_im.npy",patches['val']['im'])
+	np.save(folder+"val_label.npy",patches['val']['label'])
 
 joblib.dump(scaler, 'scaler_'+dataset+'.joblib') 
 assert 1==2
