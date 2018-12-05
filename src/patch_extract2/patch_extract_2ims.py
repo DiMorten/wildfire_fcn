@@ -29,15 +29,19 @@ ap.add_argument('-at', '--all_train', default=False,help="Modify train/Test mask
 ap.add_argument('-ds', '--dataset', default="para",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-of', '--output_folder', default="patches/",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is to be applied with pre-trained scaler")
-ap.add_argument('-val', '--validating', type=bool,default=None,help="If normalization is to be applied with pre-trained scaler")
+ap.add_argument('-val', '--validating', default=None,help="If normalization is to be applied with pre-trained scaler")
 
 a = ap.parse_args()
 
 
 if a.all_train=="True":
 	a.all_train=True
+elif a.all_train=="False":
+	a.all_train=False
 if a.validating=="True":
 	a.validating=True
+elif a.validating=="False":
+	a.validating=False
 
 pathlib.Path(a.output_folder).mkdir(parents=True, exist_ok=True)
 
@@ -140,7 +144,10 @@ dataset=a.dataset
 path=path_configure(dataset,source='tiff')
 im=im_load(path,dataset)
 mask,label,bounding_box=mask_label_load(path,im,all_train=a.all_train)
-
+if a.validating==False:
+	mask[mask==3]=1
+	print("Not validating")
+stats_print(mask)
 deb.prints(im.shape)
 deb.prints(mask.shape)
 deb.prints(label.shape)
@@ -303,9 +310,6 @@ def label_apply_mask(im,mask,validating=None):
 data={'train':{},'test':{},'val':{}}
 # These images and labels are already isolated between train and test areass
 
-if a.validating==False:
-	mask[mask==3]=1
-	print("Not validating")
 
 data['train']['im'], data['test']['im'], data['val']['im'] = im_apply_mask(im,mask,channel_n,validating=a.validating)
 data['train']['label'], data['test']['label'], data['val']['label'] = label_apply_mask(label,mask,validating=a.validating)
