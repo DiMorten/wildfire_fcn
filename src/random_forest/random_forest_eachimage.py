@@ -171,18 +171,21 @@ def path_configure(dataset,source='tiff'):
 def mask_label_load(path):
 
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
+	print("Just reading mask unique",np.unique(mask,return_counts=True))
 	label=cv2.imread(path['label'],-1).astype(np.uint8)
 	label[label==2]=1 # Only use 2 classes
 	label=label+1 # 0 is for background
 
 	bounding_box=cv2.imread(path['bounding_box'],-1).astype(np.uint8)
-	mask[mask==255]=1
-	mask=mask+1
+	#mask[mask==255]=1
+	#mask=mask+1
 	mask[bounding_box==0]=0 # Background. No data
 	label[bounding_box==0]=0 # Background. No data
 	mask=mask.reshape(-1)
 	label=label.reshape(-1)
 	# Not quite necessary to do this but more informative
+
+	print("After zeroing mask unique",np.unique(mask,return_counts=True))
 
 	return mask,label
 
@@ -229,7 +232,7 @@ def dataset_load(dataset,source='tiff'):
 		samples_per_class=samples_per_class)
 	return features_train, label_train, features_test, label_test
 
-def dataset_load_all(dataset,source='tiff',mask_mode='all_train')
+def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
 	path=path_configure(dataset,source)
 	mask,label=mask_label_load(path)
 
@@ -237,17 +240,24 @@ def dataset_load_all(dataset,source='tiff',mask_mode='all_train')
 	im=im_load(path,dataset,source=source)
 	deb.prints(mask.shape)
 	# ================== MASK THE IMAGES ===================
-	
-	features=im[mask!=0]
-	del im
+	if mask_mode=='all_train':
+		features=im[mask!=0]
+		del im
 
-	label=label[mask!=0]
-	mask=mask[mask!=0]
+		label=label[mask!=0]
+		mask=mask[mask!=0]
+	elif mask_mode=='all_test':
+		features=im[mask==2]
+		del im
 
+		label=label[mask==2]
+		mask=mask[mask==2]
 	print(features.shape)
 
 
 	label_train=label.copy()
+
+	unique,label_count=np.unique(label,return_counts=True)
 	#================= PRINT STATISTICS===============
 	statistics_print(label,mask,label_train)
 
@@ -258,35 +268,43 @@ def dataset_load_all(dataset,source='tiff',mask_mode='all_train')
 	scaler = pp.StandardScaler().fit(features)
 	features = scaler.transform(features)
 
-	samples_per_class=300000
-
-
+	
 	# ================== DATA BALANCE ============================
 	if mask_mode=='all_train':
+		samples_per_class=label_count[1] # No data augmentation
+		#samples_per_class=300000
+		deb.prints(samples_per_class)
 		features, label=balance_data(features, label, 
 			samples_per_class=samples_per_class)
 
 	return features, label
 
 #================== DEFINE FILENAMES =======================
+mask_mode='all_test'
+#mask_mode='all_train'
 
-load_other_model=False
 source_format='tiff'
+#dataset='para'
 dataset='para'
-features_train_source, label_train_source, _, _=dataset_load(dataset, source=source_format,mask_mode='all_train')
 
-dataset='acre'
-features_train_target, label_train_target, features_test, label_test=dataset_load(dataset,mask_mode='all_test')
+deb.prints(mask_mode)
+deb.prints(dataset)
 
+features, label=dataset_load_all(dataset, source=source_format,
+	mask_mode=mask_mode)
 
-print(features_train_source.shape)
-print(features_train_target.shape)
+print(features.shape)
 
-features_train=np.concatenate((features_train_source,features_train_target),axis=0)
-label_train=np.concatenate((label_train_source,label_train_target),axis=0)
+if mask_mode=='all_train':
+	load_other_model=False
 
-print(features_train.shape) #(600000, 6)
-print(label_train.shape) #(600000)
+elif mask_mode=='all_test':
+	load_other_model=True
+	if dataset=='acre':
+		loaded_dataset='para'
+	elif dataset=='para':
+		loaded_dataset='acre'
+
 
 
 
@@ -300,6 +318,7 @@ print(label_train.shape) #(600000)
 #================== START TRAINING=======================
 
 
+testing=False
 n_trees=250
 max_depth=25
 
@@ -310,65 +329,48 @@ clf = RandomForestClassifier(n_estimators=n_trees,
 							 max_depth=max_depth,
 							 n_jobs=-1)
 #start_time = time.time()
-
+deb.prints(load_other_model)
 if load_other_model==False:
 	print('Start training...............')
-	clf = clf.fit(features_train, label_train)
-	joblib.dump(clf, 'trained_classifier.joblib') 
+	clf = clf.fit(features, label)
+	joblib.dump(clf, 'trained_classifier_'+dataset+'.joblib') 
 	print('Training finished, time of executuion ')
 
 if load_other_model==True:
-	print("Loading other model...")
-	clf = joblib.load('results/acre/trained_classifier.joblib') 
+	print("Loading other model...",loaded_dataset)
+	clf = joblib.load('trained_classifier_'+loaded_dataset+'.joblib') 
 
-# predict
-#start_time = time.time()
-print('Start testing...............')
-predict_batch = 200000
-predictions = np.zeros((np.shape(features_test)[0]))
-for i in range(0, np.shape(features_test)[0], predict_batch):
-	predictions[i:i+predict_batch] = clf.predict(features_test[
-		i:i+predict_batch])
+if load_other_model==True:
+	print('Start testing...............')
+	predict_batch = 200000
+	predictions = np.zeros((np.shape(features)[0]))
+	for i in range(0, np.shape(features)[0], predict_batch):
+		predictions[i:i+predict_batch] = clf.predict(features[
+			i:i+predict_batch])
 
-predictions_prob = np.zeros((np.shape(features_test)[0],len(np.unique(label_test))))
-for i in range(0, np.shape(features_test)[0], predict_batch):
-	predictions_prob[i:i+predict_batch] = clf.predict_proba(features_test[
-		i:i+predict_batch])
-np.save('predictions.npy',predictions)
+	predictions_prob = np.zeros((np.shape(features)[0],len(np.unique(label))))
+	for i in range(0, np.shape(features)[0], predict_batch):
+		predictions_prob[i:i+predict_batch] = clf.predict_proba(features[
+			i:i+predict_batch])
+	np.save('predictions.npy',predictions)
 
-np.save('predictions_prob.npy',predictions_prob)
-predictions=predictions.astype(np.uint8)
-#finish = time.time()
-#test_time = (finish - start_time)
-#print('Test finished, time of executuion ', test_time/60)
-#else:
-	#predictions=np.load('predictions.npy').astype(np.uint8)
-	#predictions=np.load('seq1/predictions_300k.npy').astype(np.uint8)
-#    predictions=np.load('seq2/predictions_seq2_300k.npy').astype(np.uint8)
-	
-	
-print("predictions",predictions.shape,np.unique(predictions),predictions.dtype)
-print("label_test",label_test.shape,np.unique(label_test),label_test.dtype)
-predictions=predictions.astype(np.uint8)
+	np.save('predictions_prob.npy',predictions_prob)
+	predictions=predictions.astype(np.uint8)
 
-metrics={}
-metrics['f1_score']=f1_score(label_test,predictions,average='macro')
-metrics['f1_score_weighted']=f1_score(label_test,predictions,average='weighted')
 		
-metrics['overall_acc']=accuracy_score(label_test,predictions)
-confusion_matrix_=confusion_matrix(label_test,predictions)
-metrics['per_class_acc']=(confusion_matrix_.astype('float') / confusion_matrix_.sum(axis=1)[:, np.newaxis]).diagonal()
-		
-metrics['average_acc']=np.average(metrics['per_class_acc'][~np.isnan(metrics['per_class_acc'])])
-print(metrics)
-print(confusion_matrix_)
+	print("predictions",predictions.shape,np.unique(predictions),predictions.dtype)
+	print("label_test",label.shape,np.unique(label),label.dtype)
+	predictions=predictions.astype(np.uint8)
 
+	metrics={}
+	metrics['f1_score']=f1_score(label,predictions,average=None)
+	metrics['f1_score_weighted']=f1_score(label,predictions,average='weighted')
+			
+	metrics['overall_acc']=accuracy_score(label,predictions)
+	confusion_matrix_=confusion_matrix(label,predictions)
+	metrics['per_class_acc']=(confusion_matrix_.astype('float') / confusion_matrix_.sum(axis=1)[:, np.newaxis]).diagonal()
+			
+	metrics['average_acc']=np.average(metrics['per_class_acc'][~np.isnan(metrics['per_class_acc'])])
+	print(metrics)
+	print(confusion_matrix_)
 
-
-
-
-
-
-## 
-#  [ 1  2  6  7  8  9 10 11] [  35399   27469   80238  245754   83364 2329914     308   89488]
-# For seq2.
