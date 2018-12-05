@@ -110,7 +110,8 @@ def mask_label_load(path,im,flatten=False,all_train=False):
 	print("Mask")
 	stats_print(mask)	
 	if all_train==True:
-		mask.fill(1)
+		#mask.fill(1)
+		mask[mask!=3]=1
 	stats_print(mask)
 	mask[bounding_box==0]=0 # Background. No data
 	label[bounding_box==0]=0 # Background. No data
@@ -302,8 +303,9 @@ def label_apply_mask(im,mask,validating=None):
 data={'train':{},'test':{},'val':{}}
 # These images and labels are already isolated between train and test areass
 
-if not a.validating:
+if a.validating==False:
 	mask[mask==3]=1
+	print("Not validating")
 
 data['train']['im'], data['test']['im'], data['val']['im'] = im_apply_mask(im,mask,channel_n,validating=a.validating)
 data['train']['label'], data['test']['label'], data['val']['label'] = label_apply_mask(label,mask,validating=a.validating)
