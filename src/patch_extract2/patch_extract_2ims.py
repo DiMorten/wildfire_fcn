@@ -25,20 +25,29 @@ ap.add_argument('-tess', '--test_step', default=32,help="Path to weights file to
 
 ap.add_argument('-wpx', '--wildfire_min_pixel_percentage', default=-1, \
 	help="Extract patches which have the wildfire class on them only. Use 'any' for at least 1px")
-ap.add_argument('-at', '--all_train', default=False,help="Modify train/Test mask so that almost everything is used for training")
+ap.add_argument('-at', '--all_train', type=bool, default=False,help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-ds', '--dataset', default="para",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-of', '--output_folder', default="patches/",help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is to be applied with pre-trained scaler")
 ap.add_argument('-val', '--validating', type=bool,default=None,help="If normalization is to be applied with pre-trained scaler")
+ap.add_argument('-atst', '--all_test', type=bool, default=False,help="Modify train/Test mask so that almost everything is used for training")
 
 a = ap.parse_args()
 
 
 if a.all_train=="True":
 	a.all_train=True
+elif a.all_train=="False":
+	a.all_train=False
 if a.validating=="True":
 	a.validating=True
+if a.all_test=="True":
+	a.all_test=True
+elif a.all_test=="False":
+	a.all_test=False
 
+deb.prints(a.all_train)
+deb.prints(a.all_test)
 pathlib.Path(a.output_folder).mkdir(parents=True, exist_ok=True)
 
 def stats_print(x):
@@ -91,7 +100,7 @@ def im_load(path,dataset):
 	return im
 
 def mask_label_load(path,im,flatten=False,all_train=False,
-	validating=False):
+	validating=False,all_test=False):
 
 	deb.prints(path['train_test_mask'])
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
@@ -115,7 +124,11 @@ def mask_label_load(path,im,flatten=False,all_train=False,
 			mask[mask!=3]=1
 		else:
 			mask.fill(1)
-
+	if all_test==True:
+		if validating==True:
+			mask[mask!=3]=2
+		else:
+			mask.fill(2)
 	stats_print(mask)
 	mask[bounding_box==0]=0 # Background. No data
 	label[bounding_box==0]=0 # Background. No data
@@ -144,7 +157,7 @@ dataset=a.dataset
 path=path_configure(dataset,source='tiff')
 im=im_load(path,dataset)
 mask,label,bounding_box=mask_label_load(path,im,all_train=a.all_train,
-	validating=a.validating)
+	validating=a.validating,all_test=a.all_test)
 
 deb.prints(im.shape)
 deb.prints(mask.shape)
@@ -169,13 +182,16 @@ from sklearn.preprocessing import MinMaxScaler
 # im_flat=np.reshape(im,(h*w,chans))
 # bounding_box_flat=np.reshape(bounding_box,-1)
 # stats_print(im_flat[bounding_box_flat!=0])
-def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,debug=0):
+def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,
+	all_test=False,debug=0):
 	h,w,chans=im.shape
 	im=np.reshape(im,(h*w,chans))
 	mask=np.reshape(mask,-1)
 	deb.prints(im.shape)
 	deb.prints(np.unique(mask,return_counts=True))
+	
 	# Pick source pixels
+	
 	im_train=im[mask==1]
 
 	# Correct for saturated values
@@ -237,7 +253,7 @@ else:
 
 im,scaler= scaler_from_im_fit(im,fit_mask,
 	dump_name=a.output_folder+a.dataset,
-	scaler_path=a.scaler_path)
+	scaler_path=a.scaler_path, all_test=a.all_test)
 
 stats_print(im)
 
