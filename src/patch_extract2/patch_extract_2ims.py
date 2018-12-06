@@ -90,7 +90,8 @@ def im_load(path,dataset):
 		im = im[0:-1,:,:]
 	return im
 
-def mask_label_load(path,im,flatten=False,all_train=False):
+def mask_label_load(path,im,flatten=False,all_train=False,
+	validating=False):
 
 	deb.prints(path['train_test_mask'])
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
@@ -110,7 +111,11 @@ def mask_label_load(path,im,flatten=False,all_train=False):
 	print("Mask")
 	stats_print(mask)	
 	if all_train==True:
-		mask.fill(1)
+		if validating==True:
+			mask[mask!=3]=1
+		else:
+			mask.fill(1)
+
 	stats_print(mask)
 	mask[bounding_box==0]=0 # Background. No data
 	label[bounding_box==0]=0 # Background. No data
@@ -138,7 +143,8 @@ dataset=a.dataset
 
 path=path_configure(dataset,source='tiff')
 im=im_load(path,dataset)
-mask,label,bounding_box=mask_label_load(path,im,all_train=a.all_train)
+mask,label,bounding_box=mask_label_load(path,im,all_train=a.all_train,
+	validating=a.validating)
 
 deb.prints(im.shape)
 deb.prints(mask.shape)
