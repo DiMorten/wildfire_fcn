@@ -361,9 +361,9 @@ if load_other_model==True:
 	for i in range(0, np.shape(features)[0], predict_batch):
 		predictions_prob[i:i+predict_batch] = clf.predict_proba(features[
 			i:i+predict_batch])
-	np.save('predictions.npy',predictions)
-
-	np.save('predictions_prob.npy',predictions_prob)
+	np.save('result_rf/'+a.dataset+'_predictions.npy',predictions)
+	np.save('result_rf/'+a.dataset+'_label.npy',label)
+	#np.save('predictions_prob.npy',predictions_prob)
 	predictions=predictions.astype(np.uint8)
 
 		

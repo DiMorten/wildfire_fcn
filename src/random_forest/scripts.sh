@@ -1,9 +1,7 @@
 
-source='para';
-target='acre';
+source='para'; target='acre';
 
-source='acre';
-target='para';
+source='acre'; target='para';
 
 
 python random_forest_eachimage.py -ds=$source -mm='all_train'
