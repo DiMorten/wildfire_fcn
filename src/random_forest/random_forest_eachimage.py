@@ -232,6 +232,12 @@ def dataset_load(dataset,source='tiff'):
 		samples_per_class=samples_per_class)
 	return features_train, label_train, features_test, label_test
 
+def dataset_mask_apply(condition,im,label,mask):
+	features=im[condition]
+	del im
+	label=label[condition]
+	mask=mask[condition]
+	return features,label,mask
 def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
 	path=path_configure(dataset,source)
 	mask,label=mask_label_load(path)
@@ -253,6 +259,12 @@ def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
 
 		label=label[mask==2]
 		mask=mask[mask==2]
+	elif mask_mode=='val':
+		features=im[mask==3]
+		del im
+
+		label=label[mask==3]
+		mask=mask[mask==3]
 	print(features.shape)
 
 
@@ -271,7 +283,7 @@ def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
 
 	
 	# ================== DATA BALANCE ============================
-	if mask_mode=='all_train':
+	if mask_mode=='all_train' or mask_mode=='val':
 		samples_per_class=label_count[1] # No data augmentation
 		#samples_per_class=300000
 		deb.prints(samples_per_class)
@@ -283,7 +295,8 @@ def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
 ap = argparse.ArgumentParser()
 
 ap.add_argument('-ds', '--dataset', default="para", help="Path to source dataset")
-#ap.add_argument('-tds', '--target_dataset', default="acre", help="Path to target dataset")
+ap.add_argument('-tm', '--train_mode', default="source", 
+	help="Modes: source, source_tval, tval. tval means target val")
 ap.add_argument('-mm', '--mask_mode', default="all_test", help="Could be all_train or all_test")
 
 a = ap.parse_args()
@@ -298,23 +311,44 @@ source_format='tiff'
 
 deb.prints(a.mask_mode)
 deb.prints(a.dataset)
+deb.prints(a.train_mode)
 
 features, label=dataset_load_all(a.dataset, source=source_format,
 	mask_mode=a.mask_mode)
 
+
 print(features.shape)
+
+if a.dataset=='acre':
+	target_dataset='para'
+elif a.dataset=='para':
+	target_dataset='acre'
 
 if a.mask_mode=='all_train':
 	load_other_model=False
 
 elif a.mask_mode=='all_test':
 	load_other_model=True
-	if a.dataset=='acre':
-		loaded_dataset='para'
-	elif a.dataset=='para':
-		loaded_dataset='acre'
 
 
+
+if a.train_mode!='source' and a.mask_mode=='all_train':
+	print('Before applying train mode...')
+	deb.prints(features.shape)
+	deb.prints(label.shape)	
+	target_val_features, target_val_label=dataset_load_all(
+		target_dataset, source=source_format, mask_mode='val')
+
+	if a.train_mode=='source_tval':
+		features=np.concatenate((features,target_val_features),axis=0)
+		label=np.concatenate((label,target_val_label),axis=0)
+	elif a.train_mode=='tval':	
+		features=target_val_features.copy()
+		label=target_val_label.copy()
+
+	print('After applying train mode...')
+	deb.prints(features.shape)
+	deb.prints(label.shape)
 
 
 #np.save('features_train.npy',features_train)
@@ -342,12 +376,12 @@ deb.prints(load_other_model)
 if load_other_model==False:
 	print('Start training...............')
 	clf = clf.fit(features, label)
-	joblib.dump(clf, 'trained_classifier_'+a.dataset+'.joblib') 
+	joblib.dump(clf, 'trained_classifier_'+a.train_mode+'_'+a.dataset+'.joblib') 
 	print('Training finished, time of executuion ')
 
 if load_other_model==True:
-	print("Loading other model...",loaded_dataset)
-	clf = joblib.load('trained_classifier_'+loaded_dataset+'.joblib') 
+	print("Loading other model...",target_dataset)
+	clf = joblib.load('trained_classifier_'+a.train_mode+'_'+target_dataset+'.joblib') 
 
 if load_other_model==True:
 	print('Start testing...............')
@@ -361,8 +395,8 @@ if load_other_model==True:
 	for i in range(0, np.shape(features)[0], predict_batch):
 		predictions_prob[i:i+predict_batch] = clf.predict_proba(features[
 			i:i+predict_batch])
-	np.save('result_rf/'+a.dataset+'_predictions.npy',predictions)
-	np.save('result_rf/'+a.dataset+'_label.npy',label)
+	np.save('result_rf/'+a.train_mode+a.dataset+'_predictions.npy',predictions)
+	np.save('result_rf/'+a.train_mode+a.dataset+'_label.npy',label)
 	#np.save('predictions_prob.npy',predictions_prob)
 	predictions=predictions.astype(np.uint8)
 

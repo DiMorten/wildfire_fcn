@@ -6,6 +6,7 @@ clear all
 
 %dataset='acre';
 dataset='para';
+dataset='area3';
 
 mask_name='TrainTestMask.png';
 if strcmp(dataset,'acre')
