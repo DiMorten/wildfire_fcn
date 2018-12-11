@@ -31,6 +31,7 @@ ap.add_argument('-of', '--output_folder', default="patches/",help="Modify train/
 ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is to be applied with pre-trained scaler")
 ap.add_argument('-val', '--validating', type=bool,default=None,help="If normalization is to be applied with pre-trained scaler")
 ap.add_argument('-atst', '--all_test', type=bool, default=False,help="Modify train/Test mask so that almost everything is used for training")
+ap.add_argument('-c', '--channel_n', type=int, default=6,help="Modify train/Test mask so that almost everything is used for training")
 
 a = ap.parse_args()
 
@@ -71,6 +72,17 @@ def path_configure(dataset,source='tiff',train_test_mask='TrainTestMask.png'):
 			#path['raster']=path['data']+'acre_matched.mat'
 		path['label']=path['data']+'labels.tif'
 		path['bounding_box']=path['data']+'bounding_box_clip.tif'
+	elif dataset=='area3':
+		path['data']='../../data/vaihinghen/area3/'
+		path['raster']=path['data']+'im.tif'
+		path['label']=path['data']+'labels.tif'
+		path['bounding_box']=path['data']+'bounding_box.tif'
+	elif dataset=='area23':
+		path['data']='../../data/vaihinghen/area23/'
+		path['raster']=path['data']+'im.tif'
+		path['label']=path['data']+'labels.tif'
+		path['bounding_box']=path['data']+'bounding_box.tif'
+
 	path['train_test_mask']=path['data']+train_test_mask
 	return path	
 
@@ -99,18 +111,19 @@ def im_load(path,dataset):
 		im = im[0:-1,:,:]
 	return im
 
-def mask_label_load(path,im,flatten=False,all_train=False,
-	validating=False,all_test=False):
+def mask_label_load(path,im,channel_n,dataset,flatten=False,
+	all_train=False,validating=False,all_test=False):
 
 	deb.prints(path['train_test_mask'])
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
 	unique_count_print(mask)
 	label=cv2.imread(path['label'],-1).astype(np.uint8)
-	label[label==2]=1 # Only use 2 classes
-	label=label+1 # 0 is for background
+	if dataset=='acre' or dataset=='para':
+		label[label==2]=1 # Only use 2 classes
+		label=label+1 # 0 is for background
 
 	bounding_box=cv2.imread(path['bounding_box'],-1).astype(np.uint8)
-	channel_n=6
+	
 	chans=range(channel_n)
 	for chan in chans:
 		bounding_box[im[:,:,chan]==32767]=0
@@ -156,7 +169,8 @@ dataset=a.dataset
 
 path=path_configure(dataset,source='tiff')
 im=im_load(path,dataset)
-mask,label,bounding_box=mask_label_load(path,im,all_train=a.all_train,
+mask,label,bounding_box=mask_label_load(path,im,
+	a.channel_n,a.dataset,all_train=a.all_train,
 	validating=a.validating,all_test=a.all_test)
 
 deb.prints(im.shape)
@@ -182,8 +196,8 @@ from sklearn.preprocessing import MinMaxScaler
 # im_flat=np.reshape(im,(h*w,chans))
 # bounding_box_flat=np.reshape(bounding_box,-1)
 # stats_print(im_flat[bounding_box_flat!=0])
-def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,
-	all_test=False,debug=0):
+def scaler_from_im_fit(im,mask,dump_name="default",
+	scaler_path=None,all_test=False,debug=0):
 	h,w,chans=im.shape
 	im=np.reshape(im,(h*w,chans))
 	mask=np.reshape(mask,-1)
@@ -199,13 +213,10 @@ def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,
 	#n=32767
 	#im_train[im_train==n]=np.average(im_train[im_train!=n])
 	stats_print(im_train)
-	stats_print(im_train[:,0])
-	stats_print(im_train[:,1])
-	stats_print(im_train[:,2])
-	stats_print(im_train[:,3])
-	stats_print(im_train[:,4])
-	stats_print(im_train[:,5])
 
+	for chan in range(chans):
+		stats_print(im_train[:,chan])	
+	
 	if debug>=2:
 		
 		deb.prints(np.count_nonzero(im_train[im_train>30000]))
@@ -240,7 +251,8 @@ def scaler_from_im_fit(im,mask,dump_name="default",scaler_path=None,
 	return im,scaler
 
 cv2.imwrite("im1.png",im[:,:,0:3])
-cv2.imwrite("im2.png",im[:,:,3:6])
+if a.dataset=='para' or a.dataset=='acre':
+	cv2.imwrite("im2.png",im[:,:,3:6])
 
 #import tifffile as tiff
 
@@ -390,7 +402,7 @@ def patches_from_subset(subset,data,window_shape,patches_step, \
 from  skimage.util import view_as_windows
 
 window_len=a.window_len
-channel_n=6
+channel_n=a.channel_n
 #patches_step=int(window_len/3)
 #patches_step=int(window_len)
 #patches_step=a.train_step
@@ -421,8 +433,9 @@ deb.prints(patches['test']['im'].shape)
 if a.validating==True:
 	deb.prints(patches['val']['im'].shape)
 
-
 folder="compact/"+dataset+"/"
+pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
+
 np.save(folder+"train_im.npy",patches['train']['im'])
 np.save(folder+"train_label.npy",patches['train']['label'])
 np.save(folder+"test_im.npy",patches['test']['im'])

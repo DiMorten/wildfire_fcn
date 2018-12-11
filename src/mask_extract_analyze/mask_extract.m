@@ -6,7 +6,13 @@ clear all
 
 %dataset='acre';
 dataset='para';
-dataset='area3';
+dataset='area23';
+
+if strcmp(dataset,'para') ||strcmp(dataset,'acre') 
+    application='wildfire';
+elseif strcmp(dataset,'area3') ||strcmp(dataset,'area23') 
+    application='vaihinghen';
+end
 
 mask_name='TrainTestMask.png';
 if strcmp(dataset,'acre')
@@ -17,6 +23,14 @@ elseif strcmp(dataset,'para')
     folder='/home/lvc/Jorg/igarss/wildfire_fcn/data/AP1_Para/';
     label_name='labels.tif';
     im_name='L8_224-66_ROI_clip.tif';
+elseif strcmp(dataset,'area3')
+    folder='/home/lvc/Jorg/igarss/wildfire_fcn/data/vaihinghen/area3/';
+    label_name='labels.tif';
+    im_name='im.tif';
+elseif strcmp(dataset,'area23')
+    folder='/home/lvc/Jorg/igarss/wildfire_fcn/data/vaihinghen/area23/';
+    label_name='labels.tif';
+    im_name='im.tif';
 end
 im=imread(strcat(folder,im_name));
 if strcmp(dataset,'para')
@@ -26,8 +40,10 @@ elseif strcmp(dataset,'acre')
 end
 
 label=imread(strcat(folder,label_name));
-label(label==2)=1;
-figure();imshow(uint16(im(:,:,1:3))*50,[])
+if strcmp(application,'wildfire')
+    label(label==2)=1;
+    figure();imshow(uint16(im(:,:,1:3))*50,[])
+end
 figure();
 ha(1)=subplot(1,2,1);
 imshow(label,[])
@@ -81,6 +97,13 @@ elseif strcmp(dataset,'acre')
     mask(1977:2229,3405:3617)=3;
     mask(3088:3311,2499:2624)=3;
     mask(984:1247,250:393)=3;
+    
+elseif strcmp(dataset,'area3')
+    mask=ones(size(label))*2;%test
+    mask(511:609,371:530)=3;
+elseif strcmp(dataset,'area23')
+    mask=ones(size(label))*2;%test
+    mask(2102:2251,1294:1434)=3;
 end
 figure(2);
 ha(2)=subplot(1,2,2);
@@ -95,8 +118,9 @@ sum(reference_masked==0)
 
 sum(reference_masked==1)
 imshow(mask,[])
-mask_evaluate2(label,mask)
-
+if strcmp(application,'wildfire')
+    mask_evaluate2(label,mask)
+end
 imwrite(uint8(mask),strcat('TrainTestMask_',dataset,'.png'));
 %%
 %mask_evaluate(im,label,mask)
