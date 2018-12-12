@@ -165,22 +165,35 @@ def path_configure(dataset,source='tiff'):
 			#path['raster']=path['data']+'acre_matched.mat'
 		path['label']=path['data']+'labels.tif'
 		path['bounding_box']=path['data']+'bounding_box_clip.tif'
+	elif dataset=='area3':
+		path['data']='../../data/vaihinghen/area3/'
+		path['raster']=path['data']+'im.tif'
+		path['label']=path['data']+'labels.tif'
+		path['bounding_box']=path['data']+'bounding_box.tif'
+	elif dataset=='area23':
+		path['data']='../../data/vaihinghen/area23/'
+		path['raster']=path['data']+'im.tif'
+		path['label']=path['data']+'labels.tif'
+		path['bounding_box']=path['data']+'bounding_box.tif'
+
 	path['train_test_mask']=path['data']+'TrainTestMask.png'
 	return path	
 
-def mask_label_load(path):
+def mask_label_load(path,dataset):
 
 	mask=cv2.imread(path['train_test_mask'],0).astype(np.uint8)
 	print("Just reading mask unique",np.unique(mask,return_counts=True))
 	label=cv2.imread(path['label'],-1).astype(np.uint8)
-	label[label==2]=1 # Only use 2 classes
-	label=label+1 # 0 is for background
+	if dataset=='acre' or dataset=='para':
+		label[label==2]=1 # Only use 2 classes
+		label=label+1 # 0 is for background
 
 	bounding_box=cv2.imread(path['bounding_box'],-1).astype(np.uint8)
 	#mask[mask==255]=1
 	#mask=mask+1
-	mask[bounding_box==0]=0 # Background. No data
-	label[bounding_box==0]=0 # Background. No data
+	if dataset=='acre' or dataset=='para':
+		mask[bounding_box==0]=0 # Background. No data
+		label[bounding_box==0]=0 # Background. No data
 	mask=mask.reshape(-1)
 	label=label.reshape(-1)
 	# Not quite necessary to do this but more informative
@@ -238,9 +251,10 @@ def dataset_mask_apply(condition,im,label,mask):
 	label=label[condition]
 	mask=mask[condition]
 	return features,label,mask
-def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
+def dataset_load_all(dataset,source='tiff',
+	mask_mode='all_train', balance_samples=None):
 	path=path_configure(dataset,source)
-	mask,label=mask_label_load(path)
+	mask,label=mask_label_load(path,dataset)
 
 	# ================== STACK IMAGES ============================  
 	im=im_load(path,dataset,source=source)
@@ -281,10 +295,13 @@ def dataset_load_all(dataset,source='tiff',mask_mode='all_train'):
 	scaler = pp.StandardScaler().fit(features)
 	features = scaler.transform(features)
 
-	
+	if balance_samples:
+		samples_per_class=balance_samples
+	else:
+		samples_per_class=label_count[1]
 	# ================== DATA BALANCE ============================
 	if mask_mode=='all_train' or mask_mode=='val':
-		samples_per_class=label_count[1] # No data augmentation
+		#samples_per_class=label_count[1] # No data augmentation
 		#samples_per_class=300000
 		deb.prints(samples_per_class)
 		features, label=balance_data(features, label, 
@@ -298,9 +315,11 @@ ap.add_argument('-ds', '--dataset', default="para", help="Path to source dataset
 ap.add_argument('-tm', '--train_mode', default="source", 
 	help="Modes: source, source_tval, tval. tval means target val")
 ap.add_argument('-mm', '--mask_mode', default="all_test", help="Could be all_train or all_test")
+ap.add_argument('-bs', '--balance_samples', type=int,default=None, help="Could be all_train or all_test")
 
 a = ap.parse_args()
 
+deb.prints(a.balance_samples)
 #================== DEFINE FILENAMES =======================
 
 #mask_mode='all_train'
@@ -314,7 +333,7 @@ deb.prints(a.dataset)
 deb.prints(a.train_mode)
 
 features, label=dataset_load_all(a.dataset, source=source_format,
-	mask_mode=a.mask_mode)
+	mask_mode=a.mask_mode,balance_samples=a.balance_samples)
 
 
 print(features.shape)
@@ -323,6 +342,12 @@ if a.dataset=='acre':
 	target_dataset='para'
 elif a.dataset=='para':
 	target_dataset='acre'
+
+if a.dataset=='area23':
+	target_dataset='area3'
+elif a.dataset=='area3':
+	target_dataset='area23'
+
 
 if a.mask_mode=='all_train':
 	load_other_model=False

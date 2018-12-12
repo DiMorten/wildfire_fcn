@@ -156,6 +156,8 @@ def view_as_windows_flat(im,window_shape,step=1):
 	info={}
 	patch=view_as_windows(im,window_shape,step)
 	windows_shape=patch.shape
+	deb.prints(im.shape)
+	deb.prints(windows_shape)
 	patch=np.squeeze(patch)
 	patch=np.reshape(patch,(patch.shape[0]*patch.shape[1],)+patch.shape[2:])
 	deb.prints(patch.shape)
@@ -331,6 +333,24 @@ def label_apply_mask(im,mask,validating=None):
 		return im_train,im_test,im_val 
 	else:
 		return im_train,im_test,None
+def padding_apply(data,window_len,step):
+	# Pad for extracting all test patches;
+	# Take padded test patches (bounding box=1)
+	# but mask the missing values with 0 so that 
+	# they are not taken into account. 
+	data['mask']=np.pad(data['mask'],(0,window_len),
+		'constant',constant_values=2) # So that it thinks is for training
+	data['label']=np.pad(data['label'],(0,window_len),
+		'constant',constant_values=0) # So that it thinks is for training
+	#data['bounding_box']=np.pad(data['bounding_box'],
+	#	window_len,'constant',constant_values=1)
+	deb.prints(data['im'].shape)
+	data['im']=np.pad(data['im'],
+		((0,window_len),(0,window_len),(0,0)),
+		'constant',constant_values=-2)
+	deb.prints(data['im'].shape)
+	return data
+
 #def mask_apply_mask(mask):
 
 data={'train':{},'test':{},'val':{}}
@@ -339,13 +359,25 @@ data={'train':{},'test':{},'val':{}}
 if not a.validating:
 	mask[mask==3]=1
 
-data['train']['im'], data['test']['im'], data['val']['im'] = im_apply_mask(im,mask,channel_n,validating=a.validating)
-data['train']['label'], data['test']['label'], data['val']['label'] = label_apply_mask(label,mask,validating=a.validating)
+data['train']['im'], data['test']['im'], data['val']['im'] = im_apply_mask(
+	im,mask,channel_n,validating=a.validating)
+data['train']['label'], data['test']['label'], data['val']['label'] = label_apply_mask(
+	label,mask,validating=a.validating)
 
 data['train']['mask']=mask.copy()
 data['test']['mask']=mask.copy()
 if a.validating==True:
 	data['val']['mask']=mask.copy()
+
+#data['train']=padding_apply(data['train'],a.window_len,
+#	a.train_step)
+data['test']=padding_apply(data['test'],a.window_len,
+	a.test_step)
+
+deb.prints(data['test']['im'].shape)
+deb.prints(data['test']['label'].shape)
+deb.prints(data['test']['mask'].shape)
+
 '''
 def mask_from_subset(mask,subset_id):
 	out=mask.copy()
@@ -378,7 +410,11 @@ def patches_from_subset(subset,data,window_shape,patches_step, \
 	subset['im'],_=view_as_windows_flat(data['im'],window_shape,step=(patches_step,patches_step,data['im'].shape[2]))
 	subset['mask'],_=view_as_windows_flat(data['mask'],(window_len,window_len),step=(patches_step,patches_step))
 	subset['label'],_=view_as_windows_flat(data['label'],(window_len,window_len),step=(patches_step,patches_step))
+	deb.prints(np.unique(subset['mask'],return_counts=True))
+	deb.prints(np.unique(data['mask'],return_counts=True))
+	
 	deb.prints(subset['im'].shape)
+	deb.prints(mask_min_pixel_percentage)
 	subset['im']=patches_from_domain_gather(subset['im'],subset['mask'], \
 		mask_value,mask_min_pixel_percentage=mask_min_pixel_percentage)
 	subset['label']=patches_from_domain_gather(subset['label'],subset['mask'], \
@@ -415,15 +451,19 @@ deb.prints(np.unique(data['train']['label'],return_counts=True))
 deb.prints(np.unique(data['test']['label'],return_counts=True))
 
 patches={'train':{},'test':{},'val':{}}
+print("Train patches...")
 patches['train']=patches_from_subset(patches['train'],data['train'], \
 	window_shape,int(a.train_step),mask_min_pixel_percentage=0.1, \
 	wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage,
 	mask_value=1)
+
+print("Extracting test patches...")
 patches['test']=patches_from_subset(patches['test'],data['test'], \
 	window_shape,int(a.test_step),mask_min_pixel_percentage="any",
 	mask_value=2) #\
 	#wildfire_min_pixel_percentage=a.wildfire_min_pixel_percentage)
 if a.validating==True:
+	print("Extracting val patches...")
 	patches['val']=patches_from_subset(patches['val'],data['val'], \
 		window_shape,int(a.train_step),mask_min_pixel_percentage="any",
 		mask_value=3)
@@ -436,6 +476,8 @@ if a.validating==True:
 folder="compact/"+dataset+"/"
 pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
 
+deb.prints(np.unique(patches['test']['mask'],
+	return_counts=True))
 np.save(folder+"train_im.npy",patches['train']['im'])
 np.save(folder+"train_label.npy",patches['train']['label'])
 np.save(folder+"test_im.npy",patches['test']['im'])

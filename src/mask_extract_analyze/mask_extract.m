@@ -6,7 +6,7 @@ clear all
 
 %dataset='acre';
 dataset='para';
-dataset='area23';
+dataset='area3';
 
 if strcmp(dataset,'para') ||strcmp(dataset,'acre') 
     application='wildfire';
@@ -44,7 +44,7 @@ if strcmp(application,'wildfire')
     label(label==2)=1;
     figure();imshow(uint16(im(:,:,1:3))*50,[])
 end
-figure();
+figure(2);
 ha(1)=subplot(1,2,1);
 imshow(label,[])
 %%
@@ -98,10 +98,10 @@ elseif strcmp(dataset,'acre')
     mask(3088:3311,2499:2624)=3;
     mask(984:1247,250:393)=3;
     
-elseif strcmp(dataset,'area3')
+elseif strcmp(dataset,'area23')
     mask=ones(size(label))*2;%test
     mask(511:609,371:530)=3;
-elseif strcmp(dataset,'area23')
+elseif strcmp(dataset,'area3')
     mask=ones(size(label))*2;%test
     mask(2102:2251,1294:1434)=3;
 end
@@ -121,7 +121,9 @@ imshow(mask,[])
 if strcmp(application,'wildfire')
     mask_evaluate2(label,mask)
 end
-imwrite(uint8(mask),strcat('TrainTestMask_',dataset,'.png'));
+
+
+%imwrite(uint8(mask),strcat('TrainTestMask_',dataset,'.png'));
 %%
 %mask_evaluate(im,label,mask)
 

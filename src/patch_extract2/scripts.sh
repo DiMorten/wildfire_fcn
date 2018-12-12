@@ -15,7 +15,8 @@ source="para"; target="acre";
 
 python patch_extract_2ims.py -ds=$source -wpx="any" -at=True -tras=16 -val=True;
 
-python patch_extract_2ims.py -ds=$target -val=True -atst=True -sp="scaler_para";
+#python patch_extract_2ims.py -ds=$target -val=True -atst=True -sp="scaler_para";
+python patch_extract_2ims.py -ds=$target -val=True -atst=True;
 
 #python patch_extract_2ims.py -ds=$target -tras=16
 
