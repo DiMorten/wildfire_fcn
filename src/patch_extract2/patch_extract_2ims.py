@@ -371,8 +371,14 @@ if a.validating==True:
 
 #data['train']=padding_apply(data['train'],a.window_len,
 #	a.train_step)
-data['test']=padding_apply(data['test'],a.window_len,
-	a.test_step)
+# Add background to Vaihinghen
+if dataset=='area3' or dataset=='area23':
+	data['test']['label']+=1
+	data['train']['label']+=1
+	data['val']['label']+=1
+if a.all_test==True:	
+	data['test']=padding_apply(data['test'],a.window_len,
+		a.test_step)
 
 deb.prints(data['test']['im'].shape)
 deb.prints(data['test']['label'].shape)

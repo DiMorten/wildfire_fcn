@@ -18,11 +18,11 @@ python patch_extract_2ims.py -ds=$target -val=True -atst=True -c=3;
 
 # Train on source
 python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -sval=1 -s="results/source_weights_"$source".h5" -advval=1
-python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -sval=1 -advval=1 -em='basic'
+python adda.py -sds=$source -tds=$target -c=3 -cln=4 -ting=0 -sval=1 -advval=1 -em='basic'
 
 
 # Evaluate on target
-python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $target 
+python adda.py -t=True -c=3 -cln=4 -s="results_val/source_weights_"$source".h5" -sds $target 
 
 # Adversrial train
 python adda.py -f -c=3 -ibcknd=0 -s="results/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 
