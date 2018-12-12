@@ -379,6 +379,8 @@ if dataset=='area3' or dataset=='area23':
 if a.all_test==True:	
 	data['test']=padding_apply(data['test'],a.window_len,
 		a.test_step)
+	_,data['test']['label'],_=label_apply_mask(
+		data['test']['label'],data['test']['mask'])
 
 deb.prints(data['test']['im'].shape)
 deb.prints(data['test']['label'].shape)

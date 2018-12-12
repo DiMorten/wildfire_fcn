@@ -25,7 +25,7 @@ python adda.py -sds=$source -tds=$target -c=3 -cln=4 -ting=0 -sval=1 -advval=1 -
 python adda.py -t=True -c=3 -cln=4 -s="results_val/source_weights_"$source".h5" -sds $target 
 
 # Adversrial train
-python adda.py -f -c=3 -ibcknd=0 -s="results/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 
+python adda.py -f -c=3 -cln=4 -s="results/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 
 
 # Maybe train/test on target
 python adda.py -sds=$target -ting=1 -ws=0
