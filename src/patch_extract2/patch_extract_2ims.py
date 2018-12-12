@@ -32,6 +32,7 @@ ap.add_argument('-sp', '--scaler_path', default=None,help="If normalization is t
 ap.add_argument('-val', '--validating', type=bool,default=None,help="If normalization is to be applied with pre-trained scaler")
 ap.add_argument('-atst', '--all_test', type=bool, default=False,help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-c', '--channel_n', type=int, default=6,help="Modify train/Test mask so that almost everything is used for training")
+ap.add_argument('-pd', '--padding', type=bool, default=None,help="Modify train/Test mask so that almost everything is used for training")
 
 a = ap.parse_args()
 
@@ -372,15 +373,16 @@ if a.validating==True:
 #data['train']=padding_apply(data['train'],a.window_len,
 #	a.train_step)
 # Add background to Vaihinghen
-if dataset=='area3' or dataset=='area23':
-	data['test']['label']+=1
-	data['train']['label']+=1
-	data['val']['label']+=1
-if a.all_test==True:	
-	data['test']=padding_apply(data['test'],a.window_len,
-		a.test_step)
-	_,data['test']['label'],_=label_apply_mask(
-		data['test']['label'],data['test']['mask'])
+if a.padding:
+	if dataset=='area3' or dataset=='area23':
+		data['test']['label']+=1
+		data['train']['label']+=1
+		data['val']['label']+=1
+	if a.all_test==True:	
+		data['test']=padding_apply(data['test'],a.window_len,
+			a.test_step)
+		_,data['test']['label'],_=label_apply_mask(
+			data['test']['label'],data['test']['mask'])
 
 deb.prints(data['test']['im'].shape)
 deb.prints(data['test']['label'].shape)
