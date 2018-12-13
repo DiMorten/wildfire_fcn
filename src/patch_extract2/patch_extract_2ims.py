@@ -378,6 +378,9 @@ if a.testing_mode=='for_loop':
 	np.save(folder+"test_full_im.npy",data['test']['im'])
 	np.save(folder+"test_full_label.npy",data['test']['label'])
 	np.save(folder+"test_full_mask.npy",data['test']['mask'])
+	np.save(folder+"val_full_im.npy",data['val']['im'])
+	np.save(folder+"val_full_label.npy",data['val']['label'])
+	np.save(folder+"val_full_mask.npy",data['val']['mask'])
 	
 # =====================================================
 
