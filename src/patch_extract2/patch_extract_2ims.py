@@ -34,6 +34,8 @@ ap.add_argument('-atst', '--all_test', type=bool, default=False,help="Modify tra
 ap.add_argument('-c', '--channel_n', type=int, default=6,help="Modify train/Test mask so that almost everything is used for training")
 ap.add_argument('-pd', '--padding', type=bool, default=None,help="Modify train/Test mask so that almost everything is used for training")
 
+ap.add_argument('-tm', '--testing_mode',default=None, help="Testing mode can be 'for_loop'")
+
 a = ap.parse_args()
 
 
@@ -48,6 +50,7 @@ if a.all_test=="True":
 elif a.all_test=="False":
 	a.all_test=False
 
+deb.prints(a.testing_mode)
 deb.prints(a.all_train)
 deb.prints(a.all_test)
 pathlib.Path(a.output_folder).mkdir(parents=True, exist_ok=True)
@@ -167,6 +170,7 @@ def view_as_windows_flat(im,window_shape,step=1):
 one_image=False
 # Load first image
 dataset=a.dataset
+folder="compact/"+dataset+"/"
 
 #im_path='../../data/AP2_Acre/L8_002-67_ROI.tif'
 
@@ -369,6 +373,13 @@ data['train']['mask']=mask.copy()
 data['test']['mask']=mask.copy()
 if a.validating==True:
 	data['val']['mask']=mask.copy()
+# ============ save full test ims if test mode 'for_loop'
+if a.all_test==True and a.testing_mode=='for_loop':
+	np.save(folder+"test_full_im.npy",data['test']['im'])
+	np.save(folder+"test_full_label.npy",data['test']['label'])
+	np.save(folder+"test_full_mask.npy",data['test']['mask'])
+	
+# =====================================================
 
 #data['train']=padding_apply(data['train'],a.window_len,
 #	a.train_step)
@@ -483,7 +494,6 @@ deb.prints(patches['test']['im'].shape)
 if a.validating==True:
 	deb.prints(patches['val']['im'].shape)
 
-folder="compact/"+dataset+"/"
 pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
 
 deb.prints(np.unique(patches['test']['mask'],
