@@ -5,8 +5,9 @@ clear all
 
 
 %dataset='acre';
-dataset='para';
+%dataset='para';
 dataset='area3';
+%dataset='area23';
 
 if strcmp(dataset,'para') ||strcmp(dataset,'acre') 
     application='wildfire';
@@ -104,10 +105,12 @@ elseif strcmp(dataset,'area23')
 elseif strcmp(dataset,'area3')
     mask=ones(size(label))*2;%test
     mask(2102:2251,1294:1434)=3;
+    mask(1137:1370,1704:2006)=3;
+    
 end
 figure(2);
 ha(2)=subplot(1,2,2);
- 
+mask(mask==1)=2; 
 imshow(mask*100,[])
 %imshow(mask,[])
 
