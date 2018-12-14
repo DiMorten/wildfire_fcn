@@ -23,13 +23,15 @@ python patch_extract_2ims.py -ds=$target -val=True -atst=True -tm='for_loop';
 # Train on source
 #python adda.py -sds=$source -tds=$target -ting=0 -sval=1 -s="results_val/source_weights_acre.h5" -advval=1
 python adda.py -sds=$source -tds=$target -ting=0 -sval=1 -advval=1 -tm='for_loop';
+python adda.py -sds=$source -tds=$target -ting=0 -sval=1 -advval=1 -s="results_val/source_weights_"$source".h5" -tm='for_loop'; 
+
 
 
 # Evaluate on target
-python adda.py -t=True -s="results_val/source_weights_para.h5" -sds $target
+python adda.py -t=True -s="results_val/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop"
 
 # Adversrial train
-python adda.py -f -s="results_val/source_weights_para.h5" -sds $source -tds=$target -advval=1 
+python adda.py -f -s="results_val/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop"
 
 # Maybe train/test on target
 python adda.py -sds=$target -ting=1 -ws=0

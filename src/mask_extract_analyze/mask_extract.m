@@ -5,8 +5,8 @@ clear all
 
 
 %dataset='acre';
-%dataset='para';
-dataset='area3';
+dataset='para';
+%dataset='area3';
 %dataset='area23';
 
 if strcmp(dataset,'para') ||strcmp(dataset,'acre') 
