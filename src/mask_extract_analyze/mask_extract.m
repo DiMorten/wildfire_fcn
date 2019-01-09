@@ -121,6 +121,12 @@ sum(reference_masked==0)
 
 sum(reference_masked==1)
 imshow(mask,[])
+
+
+[C,ia,ic]=unique(mask);
+a_counts = accumarray(ic,1);
+mask_unique = [C, a_counts]
+
 if strcmp(application,'wildfire')
     mask_evaluate2(label,mask)
 end
