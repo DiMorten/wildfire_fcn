@@ -20,17 +20,17 @@ python patch_extract_2ims.py -ds=$target -val=True -atst=True -c=3 -tm='for_loop
 # Train on source
 python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -sval=1 -s="results/source_weights_"$source".h5" -advval=1
 python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -sval=1 -advval=1 -em='basic' -tm="for_loop"
-
+python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -sval=1 -advval=1 -em='densenet' -tm="for_loop"
 python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -em='basic' -tm="for_loop" -s="results/source_weights_"$source".h5"
 
 # Evaluate on target
 python adda.py -t=True -c=3 -ibcknd=0 -s="results7vaihinghen/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop"
-python adda.py -t=True -c=3 -ibcknd=0 -s="results/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop"
+python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop"
 
 # Evaluate on source
 python patch_extract_2ims.py -ds=$source -val=True -atst=True -c=3 -tm='for_loop';
 
-python adda.py -t=True -c=3 -ibcknd=0 -s="results/source_weights_"$source".h5" -sds $source -tds $source -tm="for_loop"
+python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $source -tds $source -tm="for_loop"
 
 # Adversrial train
 python adda.py -f -c=3 -ibcknd=0 -s="results7vaihinghen/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop"
