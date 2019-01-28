@@ -25,16 +25,19 @@ python adda.py -sds=$source -tds=$target -c=3 -ibcknd=0 -ting=0 -em='basic' -tm=
 
 # Evaluate on target
 python adda.py -t=True -c=3 -ibcknd=0 -s="results7vaihinghen/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop"
-python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop"
+python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop" -em='densenet'
+python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $target -tds $target -tm="for_loop" -em='basic'
 
 # Evaluate on source
 python patch_extract_2ims.py -ds=$source -val=True -atst=True -c=3 -tm='for_loop';
 
-python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $source -tds $source -tm="for_loop"
+python adda.py -t=True -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $source -tds $source -tm="for_loop" -em='densenet'
 
 # Adversrial train
 python adda.py -f -c=3 -ibcknd=0 -s="results7vaihinghen/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop"
-python adda.py -f -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop"
+python adda.py -f -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop" -em='densenet'
+python adda.py -f -c=3 -ibcknd=0 -s="results_val/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop" -em='basic'
+
 python adda.py -f -c=3 -ibcknd=0 -s="results/source_weights_"$source".h5" -sds $source -tds=$target -advval=1 -tm="for_loop"
 
 # Maybe train/test on target
